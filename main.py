@@ -43,13 +43,13 @@ def readForceSensorTop(forceSensorTop):
 
 
 def readForceSensor1(forceSensor1):
-    return forceSensor1
+    return forceSensor1.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
 
 def readForceSensor2(forceSensor2):
-    return forceSensor2
+    return forceSensor2.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
 
 def readForceSensor3(forceSensor3):
-    return forceSensor3
+    return forceSensor3.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
 
 
 def forceAverage123(forceSensor1, forceSensor2, forceSensor3):
