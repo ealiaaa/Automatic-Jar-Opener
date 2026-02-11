@@ -32,24 +32,30 @@ forceSensor1 = Force_Sensing_Resistor(1)
 forceSensor2 = Force_Sensing_Resistor(2)
 forceSensor3 = Force_Sensing_Resistor(3)
 
+motorTighten = Motor(forward = 16, backward=20)
+motorOpen = Motor(forward=16, backward = 20)
+
 
 def rollingAverage():
 
 
 
 
-def readForceSensorTop(forceSensorTop):
-    return forceSensorTop.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
 
-
-def readForceSensor1(forceSensor1):
-    return forceSensor1.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
-
-def readForceSensor2(forceSensor2):
-    return forceSensor2.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
-
-def readForceSensor3(forceSensor3):
-    return forceSensor3.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
+def readForceSensor(forceSensor):
+    return forceSensor.force_scaled()
+#
+# def readForceSensorTop(forceSensorTop):
+#     return forceSensorTop.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
+#
+# def readForceSensor1(forceSensor1):
+#     return forceSensor1.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
+#
+# def readForceSensor2(forceSensor2):
+#     return forceSensor2.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
+#
+# def readForceSensor3(forceSensor3):
+#     return forceSensor3.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
 
 
 def forceAverage123(forceSensor1, forceSensor2, forceSensor3):
