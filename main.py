@@ -4,7 +4,7 @@ from gpiozero import Motor,  LED
 from sensor_library.py import Force_Sensing_Resistor # recommended to import *
 
 
-forceSensorFrequency = 50
+sensorFrequency = 50
 
 gripValue = 1
 windowLen = 5
@@ -17,9 +17,9 @@ SlipConfirmThreshold = 3     # num of slips that need to happen in a row to conf
 consecutiveSlips = 0 # only initialize to 0 ONCE at the TOP of the program
 # needs to be global and untouched between function calls to count consecutive slips
 
-forceSensor1Recent = [] # buffers to store recent force values to calculate variation and slip
-forceSensor2Recent = []
-forceSensor3Recent = []
+sensor1Recent = [] # buffers to store recent force values to calculate variation and slip
+sensor2Recent = []
+sensor3Recent = []
 
 consecutiveGripValuesFailed = 0
 
@@ -27,40 +27,28 @@ lidRotationCount = 0
 
 rackPosition = 0
 
-forceSensorTop = Force_Sensing_Resistor(0)
-forceSensor1 = Force_Sensing_Resistor(1)
-forceSensor2 = Force_Sensing_Resistor(2)
-forceSensor3 = Force_Sensing_Resistor(3)
+sensorTop = Force_Sensing_Resistor(0)
+sensor1 = Force_Sensing_Resistor(1)
+sensor2 = Force_Sensing_Resistor(2)
+sensor3 = Force_Sensing_Resistor(3)
 
 motorTighten = Motor(forward = 16, backward=20)
 motorOpen = Motor(forward=16, backward = 20)
+
+
 
 
 def rollingAverage():
 
 
 
+def readSensor(sensor):
+    return sensor.force_scaled()
 
 
-def readForceSensor(forceSensor):
-    return forceSensor.force_scaled()
 
-# Redundant functions?
-# def readForceSensorTop(forceSensorTop):
-#     return forceSensorTop.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
-#
-# def readForceSensor1(forceSensor1):
-#     return forceSensor1.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
-#
-# def readForceSensor2(forceSensor2):
-#     return forceSensor2.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
-#
-# def readForceSensor3(forceSensor3):
-#     return forceSensor3.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
-
-
-def forceAverage123(forceSensor1, forceSensor2, forceSensor3):
-    return (forceSensor1 + forceSensor2 + forceSensor3) / 3
+def forceAverage123(sensor1, sensor2, sensor3):
+    return (readSensor(sensor1) + readSensor(sensor2) + readSensor(sensor1)) / 3
 
 
 
@@ -68,9 +56,9 @@ def readyStart ():
     while True:
         heldCounter = 0
 
-        while readForceSensorTop() > gripValue:
-            heldCounter += 1/forceSensorFrequency
-            time.sleep(1/forceSensorFrequency)
+        while readSensor(sensorTop) > gripValue:
+            heldCounter += 1/sensorFrequency
+            time.sleep(1/sensorFrequency)
 
             if heldCounter >= 4:           # if held down for more than 4 seconds
                 print("Starting lid grip sequence")
@@ -80,7 +68,7 @@ def readyStart ():
 
 def stillGrabbing ():
     global consecutiveGripValuesFailed
-    if forceSensorTop() < GripValue:
+    if readSensor(sensorTop) < GripValue:
         consecutiveGripValuesFailed += 1
 
         if len(consecutiveGripValuesFailed) > 25:
@@ -173,26 +161,26 @@ so if it slips, the variation is suddenly super massive, making it more obvious
 def slipDetect ():
     global consecutiveSlips
 
-    forceSensor1Recent.append(forceSensor1())
-    forceSensor2Recent.append(forceSensor2())
-    forceSensor3Recent.append(forceSensor3())
+    sensor1Recent.append(readSensor(sensor1))
+    sensor2Recent.append(readSensor(sensor2))
+    sensor3Recent.append(readSensor(sensor3))
 
     # make sure all the 3 sensors come online and have real values at the same time
     # would be bad if one added nothing or "None" to a list instead of an integer
     # or if list 2 has more entries than list 3 or something
 
-    if len(forceSensor1Recent) > windowLen:
-        forceSensor1Recent.pop(0)
-        forceSensor2Recent.pop(0)
-        forceSensor3Recent.pop(0)
+    if len(sensor1Recent) > windowLen:
+        sensor1Recent.pop(0)
+        sensor2Recent.pop(0)
+        sensor3Recent.pop(0)
 
-    if len(forceSensor1Recent) < windowLen:
+    if len(sensor1Recent) < windowLen:
         return False
 
 
-    variation1 = variation(forceSensor1Recent)
-    variation2 = variation(forceSensor2Recent)
-    variation3 = variation(forceSensor3Recent)
+    variation1 = variation(sensor1Recent)
+    variation2 = variation(sensor2Recent)
+    variation3 = variation(sensor3Recent)
     variationMax = max(variation1, variation2, variation3)
 
     if variationMax > MaxAcceptableVariation:
@@ -253,7 +241,7 @@ def main():
                     print("User has let go of handle: Retracting arms to initial positions and exiting program.")
                     dropProgram()
                     return
-                if consecutiveSlips < 50 and not slipDetect(forceSensor1, forceSensor2, forceSensor3):
+                if consecutiveSlips < 50 and not slipDetect(sensor1, sensor2, sensor3):
                     #if arent slipping now and havent for a bit
                     break
 
