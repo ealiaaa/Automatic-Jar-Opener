@@ -44,7 +44,8 @@ def rollingAverage():
 
 def readForceSensor(forceSensor):
     return forceSensor.force_scaled()
-#
+
+# Redundant functions?
 # def readForceSensorTop(forceSensorTop):
 #     return forceSensorTop.force_scaled() # What scale? (5 for 0 to 1 value) #What about raw data? .force_raw()
 #
