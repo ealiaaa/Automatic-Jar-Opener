@@ -21,11 +21,13 @@ sensor1Recent = [] # buffers to store recent force values to calculate variation
 sensor2Recent = []
 sensor3Recent = []
 
-consecutiveGripValuesFailed = 0
+
 
 lidRotationCount = 0
 
 rackPosition = 0
+
+
 
 sensorTop = Force_Sensing_Resistor(0)
 sensor1 = Force_Sensing_Resistor(1)
@@ -34,7 +36,6 @@ sensor3 = Force_Sensing_Resistor(3)
 
 motorTighten = Motor(forward = 16, backward=20)
 motorOpen = Motor(forward=16, backward = 20)
-
 
 
 
@@ -57,21 +58,23 @@ def readyStart ():
         heldCounter = 0
 
         while readSensor(sensorTop) > gripValue:
-            heldCounter += 1/sensorFrequency
+            heldCounter += 1 #/sensorFrequency?
             time.sleep(1/sensorFrequency)
 
             if heldCounter >= 4:           # if held down for more than 4 seconds
                 print("Starting lid grip sequence")
                 return
 
-
+# merge ready start and stillGrabbing
 
 def stillGrabbing ():
     global consecutiveGripValuesFailed
+    consecutiveGripValuesFailed = 0
+
     if readSensor(sensorTop) < GripValue:
         consecutiveGripValuesFailed += 1
 
-        if len(consecutiveGripValuesFailed) > 25:
+        if consecutiveGripValuesFailed > 4:
             # SET 25 to a reasonable length of grip values to fail to be absolutely sure that they have in fact, let go of the device.
             # take into account how this will work with the frequency and period
             return False
@@ -85,7 +88,7 @@ def grabJar():
     global rackPosition
 
     if forceAverage123() < 2.1 : # SET to a bit more than the force you expect to need to turn the jar
-        DCMotorDown.turn(0.001) # turn FAST but only for a bit
+        motorTighten.forward() # turn FAST but only for a bit
         rackPosition += 0.01 # DISTANCE rack moves based on how much the DC motor moves
         return False
     return True
@@ -132,7 +135,9 @@ def twistSlower():
 
 
 def dropProgram():
-    DCMotorDown.turn(-rackPosition) # completely open racks back to their initial, retracted rackPosition
+    pass
+   # motorTighten.turn(-rackPosition)
+   # completely open racks back to their initial, retracted rackPosition
     # CONVERT rackPosition to a meaningful amount of revolutions for the down motor to spin to bring the racks back
     # BE CAREFUL. THIS CAN STRIP THE GEARS and that would be annoying
 
@@ -161,9 +166,9 @@ so if it slips, the variation is suddenly super massive, making it more obvious
 def slipDetect ():
     global consecutiveSlips
 
-    sensor1Recent.append(readSensor(sensor1))
-    sensor2Recent.append(readSensor(sensor2))
-    sensor3Recent.append(readSensor(sensor3))
+    sensor1Recent.append( readSensor(sensor1) )
+    sensor2Recent.append( readSensor(sensor2) )
+    sensor3Recent.append( readSensor(sensor3) )
 
     # make sure all the 3 sensors come online and have real values at the same time
     # would be bad if one added nothing or "None" to a list instead of an integer
