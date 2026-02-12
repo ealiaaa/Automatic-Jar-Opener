@@ -1,7 +1,7 @@
 
 import time
 from gpiozero import Motor,  LED
-from sensor_library.py import Force_Sensing_Resistor # recommended to import *
+from sensor_library import Force_Sensing_Resistor # recommended to import *
 
 
 sensorFrequency = 50
@@ -25,8 +25,9 @@ sensor3Recent = []
 
 lidRotationCount = 0
 
-rackPosition = 0
-
+timeRotatedFast = 0
+timeRotatedSlow = 0
+# ALERT I've search replaced all rackPosition for 'timeRotate' without a d, now it depends on whwther we can succesfully run 1 motor at 2 different speeds at different times
 
 
 sensorTop = Force_Sensing_Resistor(0)
@@ -37,8 +38,8 @@ sensor3 = Force_Sensing_Resistor(3)
 motorTighten = Motor(forward = 16, backward=20)
 motorOpen = Motor(forward=16, backward = 20)
 
-# NOTICE QESTIONS FOR PARM
-# can i create 2 instances for the same motor?
+
+
 
 def rollingAverage():
     pass
@@ -86,22 +87,24 @@ def stillGrabbing ():
 
 
 def grabJar():
-    global rackPosition
+    global timeRotatedSlow
 
     if forceAverage123() < 2.1 : # SET to a bit more than the force you expect to need to turn the jar
-        motorTighten.forward() # turn FAST but only for a bit
-        rackPosition += 0.01 # DISTANCE rack moves based on how much the DC motor moves
+        motorTighten.forward(1) # turn FAST but only for a bit
+        time.sleep(0.2)
+        timeRotate += 0.2 # DISTANCE rack moves based on how much the DC motor moves
         return False
     return True
 
 
 
 def grabJarHarder():
-    global rackPosition
+    global timeRotate
 
     if forceAverage123() < 5 : # SET to a a bit under the max amount of stress u think the jar can take
-        DCMotorDown.turn(0.1) # turn SLOWLY but only for a bit
-        rackPosition += 0.1 # DISTANCE rack moves based on how much the DC motor moves
+        motorTighten.forward(0.2) # turn SLOWLY but only for a bit
+        time.sleep(0.4)
+        timeRotate += 0.4 # DISTANCE rack moves based on how much the DC motor moves
         return False
     return True
 
@@ -116,7 +119,7 @@ def twist():
 
     lidRotationCount += 0.05 # amount of complete revolutoins accomplished by once run of this function
 
-    rackPosition += 0.000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
+    timeRotate += 0.000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
     #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
 
 
@@ -130,16 +133,16 @@ def twistSlower():
 
     lidRotationCount += 0.005 # amount of complete revolutoins accomplished by once run of this function
 
-    rackPosition += 0.000000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
+    timeRotate += 0.000000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
     #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
 
 
 
 def dropProgram():
     pass
-   # motorTighten.turn(-rackPosition)
-   # completely open racks back to their initial, retracted rackPosition
-    # CONVERT rackPosition to a meaningful amount of revolutions for the down motor to spin to bring the racks back
+   # motorTighten.turn(-timeRotate)
+   # completely open racks back to their initial, retracted timeRotate
+    # CONVERT timeRotate to a meaningful amount of revolutions for the down motor to spin to bring the racks back
     # BE CAREFUL. THIS CAN STRIP THE GEARS and that would be annoying
 
 
