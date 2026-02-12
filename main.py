@@ -37,10 +37,11 @@ sensor3 = Force_Sensing_Resistor(3)
 motorTighten = Motor(forward = 16, backward=20)
 motorOpen = Motor(forward=16, backward = 20)
 
-
+# NOTICE QESTIONS FOR PARM
+# can i create 2 instances for the same motor?
 
 def rollingAverage():
-
+    pass
 
 
 def readSensor(sensor):
