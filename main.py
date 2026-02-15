@@ -27,7 +27,8 @@ lidRotationCount = 0
 
 timeRotatedFast = 0
 timeRotatedSlow = 0
-# ALERT I've search replaced all rackPosition for 'timeRotate' without a d, now it depends on whwther we can succesfully run 1 motor at 2 different speeds at different times
+# ALERT I've search replaced all rackPosition for 'timeRotate' without a d. I've yet to properly rename them tho, ill add that and the variable speeds soon.
+# NOTE add graudal torque increase and decreases to ease adjustment and lower wrist injury chance
 
 
 sensorTop = Force_Sensing_Resistor(0)
