@@ -40,7 +40,37 @@ motorTighten = Motor(forward = 16, backward=20)
 motorOpen = Motor(forward=16, backward = 20)
 
 
+RedLED = LED(26)
+GreenLED = LED(19)
 
+def REDLEDFlash_Error():
+    for i in range (20):
+        RedLED.on()
+        time.sleep(0.1)
+        RedLED.off()
+        time.sleep(0.1)
+        print("Unable to open this jar")
+
+def REDLEDStay_Running(Status):
+    while Status == True:
+        RedLED.on()
+        time.sleep(0.1)
+        if Status == False:
+            break
+
+def GREENLED_Running():
+    for i in range(20):
+        GreenLED.on()
+        time.sleep(0.5)
+
+
+def ReadInfinitely():
+    var1 = Force_Sensing_Resistor(0)
+    var2 = Force_Sensing_Resistor(3)
+    print("SENSOR1 = ",var1.force_scaled(scale))
+    print("SENSOR1 = ",var2.force_scaled(scale))
+    
+    
 
 def rollingAverage():
     pass
@@ -140,6 +170,7 @@ def twistSlower():
 
 
 def dropProgram():
+    REDLEDFlash_Error()
     pass
    # motorTighten.turn(-timeRotate)
    # completely open racks back to their initial, retracted timeRotate
@@ -168,12 +199,14 @@ so if it slips, the variation is suddenly super massive, making it more obvious
 
 
 
-def slipDetect ():
+def slipDetect (sensor1):
+    for i in range(10):
+        sensor1Recent.append( readSensor(sensor1) )
+        
+        
     global consecutiveSlips
 
     sensor1Recent.append( readSensor(sensor1) )
-    sensor2Recent.append( readSensor(sensor2) )
-    sensor3Recent.append( readSensor(sensor3) )
 
     # make sure all the 3 sensors come online and have real values at the same time
     # would be bad if one added nothing or "None" to a list instead of an integer
@@ -181,8 +214,6 @@ def slipDetect ():
 
     if len(sensor1Recent) > windowLen:
         sensor1Recent.pop(0)
-        sensor2Recent.pop(0)
-        sensor3Recent.pop(0)
 
     if len(sensor1Recent) < windowLen:
         return False
@@ -209,6 +240,9 @@ def slipDetect ():
 
 
 
+
+
+
 def main():
 
     readyStart() # is a while loop that will go forever until you either grab the thing for 4 seconds or keyboard interrupt
@@ -218,6 +252,7 @@ def main():
             break
 
         if not stillGrabbing ():
+            
             print("User has let go of handle: Retracting arms to initial positions and exiting program.")
             dropProgram()
             return
