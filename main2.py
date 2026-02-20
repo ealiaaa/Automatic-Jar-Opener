@@ -244,8 +244,6 @@ def main():
 try:
     main()
 
-except KeyboardInterrupt:
-    print("Program interrupted by KeyboardInterrupt.\nRetracting arms to original position.")
 finally:
     dropProgram()
     print("Program done\nRetracting to original position.")
