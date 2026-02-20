@@ -1,10 +1,10 @@
-import time
+import time, sys
 from gpiozero import Motor,  LED
 from sensor_library import Force_Sensing_Resistor # recommended to import *
 
 sensorFrequency = 50
 
-gripValue = 1
+gripValue = 100
 windowLen = 5
 # number of samples per window (~0.1s rn)
 #adjust so that you have reasonable windowLen to compare but it'll check slip as frequently as possible
@@ -24,8 +24,10 @@ lidRotationCount = 0
 
 timeRotatedFast = 0
 timeRotatedSlow = 0
-# ALERT I've search replaced all rackPosition for 'timeRotate' without a d. I've yet to properly rename them tho, ill add that and the variable speeds soon.
+# ALERT I've search replaced all rackPosition for 'timeRotate' without a d. I
+# 've yet to properly rename them tho, ill add that and the variable speeds soon.
 # NOTE add graudal torque increase and decreases to ease adjustment and lower wrist injury chance
+# add leds
 
 
 sensorTop = Force_Sensing_Resistor(0)
@@ -34,51 +36,22 @@ sensor2 = Force_Sensing_Resistor(2)
 sensor3 = Force_Sensing_Resistor(3)
 
 motorTighten = Motor(forward = 16, backward=20)
-motorOpen = Motor(forward=16, backward = 20)
+motorOpen = Motor(forward=1, backward = 7)
 
+red = LED(26)
+green = LED(19)
 
-RedLED = LED(26)
-GreenLED = LED(19)
-
-def REDLEDFlash_Error():
-    for i in range (20):
-        RedLED.on()
-        time.sleep(0.1)
-        RedLED.off()
-        time.sleep(0.1)
-        print("Unable to open this jar")
-
-def REDLEDStay_Running(Status):
-    while Status == True:
-        RedLED.on()
-        time.sleep(0.1)
-        if Status == False:
-            break
-
-def GREENLED_Running():
-    for i in range(20):
-        GreenLED.on()
-        time.sleep(0.5)
-
-
-def ReadInfinitely():
-    var1 = Force_Sensing_Resistor(0)
-    var2 = Force_Sensing_Resistor(3)
-    print("SENSOR1 = ",var1.force_scaled(scale))
-    print("SENSOR1 = ",var2.force_scaled(scale))
-    
-    
 
 def rollingAverage():
     pass
 
 
 def readSensor(sensor):
-    return sensor.force_scaled()
+    return sensor.force_raw()
 
 
 
-def forceAverage123(sensor1, sensor2, sensor3):
+def forceAverage123():
     return (readSensor(sensor1) + readSensor(sensor2) + readSensor(sensor1)) / 3
 
 
@@ -108,6 +81,8 @@ def stillGrabbing ():
             # SET 25 to a reasonable length of grip values to fail to be absolutely sure that they have in fact, let go of the device.
             # take into account how this will work with the frequency and period
             return False
+    if consecutiveGripValuesFailed > 4:
+        return False
 
     consecutiveGripValuesFailed = 0
     return True
@@ -118,7 +93,19 @@ def grabJar():
     global timeRotatedSlow
 
     if forceAverage123() < 2.1 : # SET to a bit more than the force you expect to need to turn the jar
-        motorTighten.forward(1) # turn FAST but only for a bit
+        motorTighten.forward(0.5) # turn FAST but only for a bit
+        time.sleep(0.2)
+        timeRotateSlow += 0.2 # DISTANCE rack moves based on how much the DC motor moves
+        return False
+    return True
+
+# CONSIDER consolidate timeRotatedSlow and timeRotated based on the rotation speed
+
+def grabJarHarder():
+    global timeRotate
+
+    if forceAverage123() < 5 : # SET to a a bit under the max amount of stress u think the jar can take
+        motorTighten.forward(1) # turn SLOWLY but only for a bit
         time.sleep(0.2)
         timeRotate += 0.2 # DISTANCE rack moves based on how much the DC motor moves
         return False
@@ -126,19 +113,8 @@ def grabJar():
 
 
 
-def grabJarHarder():
-    global timeRotate
 
-    if forceAverage123() < 5 : # SET to a a bit under the max amount of stress u think the jar can take
-        motorTighten.forward(0.2) # turn SLOWLY but only for a bit
-        time.sleep(0.4)
-        timeRotate += 0.4 # DISTANCE rack moves based on how much the DC motor moves
-        return False
-    return True
-
-
-
-def twist():
+def twist(): # MAKE THIS SLOWER!
     global lidRotationCount
 
     DCMotorSideways.turn(0.1) # twist jar lid at reasonable speed
@@ -149,10 +125,14 @@ def twist():
 
     timeRotate += 0.000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
     #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
+    if lidRotationCount > 3:
+        print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
+        return True
+    return False
 
 
 
-def twistSlower():
+def twistFaster(): # MAKE THIS ACTUALLY TWIST FASTER 
     global lidRotationCount
 
     DCMotorSideways.turn(0.01) # Turn jar lid slower b/c it was slipped
@@ -163,11 +143,14 @@ def twistSlower():
 
     timeRotate += 0.000000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
     #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
+    if lidRotationCount > 3:
+        print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
+        return True
+    return False
 
 
 
 def dropProgram():
-    REDLEDFlash_Error()
     pass
    # motorTighten.turn(-timeRotate)
    # completely open racks back to their initial, retracted timeRotate
@@ -196,14 +179,12 @@ so if it slips, the variation is suddenly super massive, making it more obvious
 
 
 
-def slipDetect (sensor1):
-    for i in range(10):
-        sensor1Recent.append( readSensor(sensor1) )
-        
-        
+def slipDetect ():
     global consecutiveSlips
 
     sensor1Recent.append( readSensor(sensor1) )
+    sensor2Recent.append( readSensor(sensor2) )
+    sensor3Recent.append( readSensor(sensor3) )
 
     # make sure all the 3 sensors come online and have real values at the same time
     # would be bad if one added nothing or "None" to a list instead of an integer
@@ -211,6 +192,8 @@ def slipDetect (sensor1):
 
     if len(sensor1Recent) > windowLen:
         sensor1Recent.pop(0)
+        sensor2Recent.pop(0)
+        sensor3Recent.pop(0)
 
     if len(sensor1Recent) < windowLen:
         return False
@@ -236,63 +219,33 @@ def slipDetect (sensor1):
 
 
 
+def tick():
+    if grabJar():
+        if not twist():
+            if slipDetect():
+                if grabJarHarder():
+                    if twistFaster():
+                        return False
+        return False
 
-
-
+    return stillGrabbing()
 
 def main():
+    print("Waiting for user to grip...")
+    readyStart()  # can also be rewritten as a ticked function if you want
 
-    readyStart() # is a while loop that will go forever until you either grab the thing for 4 seconds or keyboard interrupt
-
-    while True:
-        if grabJar():
-            break
-
-        if not stillGrabbing ():
-            
-            print("User has let go of handle: Retracting arms to initial positions and exiting program.")
-            dropProgram()
-            return
+    running = True
+    while running:
+        running = tick()  # returns False if program should exit
+        time.sleep(TICK_DELAY)
 
 
-    while True:
-        twist()
-        grabJar()
-        # ik that twist has a bit in it to synchronize the top and bottom mechanisms while twisting to maintain jar lib pressure
-        # but its probably easier to have that under-adjust the bottom and then just call grabJar() again, potentially in a loop
-        if lidRotationCount > 3:
-            print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
-            dropProgram()
-            return
-        if not stillGrabbing ():
-            print("User has let go of handle: Retracting arms to initial positions and exiting program.")
-            dropProgram()
-            return
-
-        if slipDetect():
-            while True:
-                twistSlower()
-                grabJarHarder()
-                # ik that twistSlower also synchronizes the top and bottom mechanisms while twisting to maintain jar lib pressure
-                # but its probably easier to have that under-adjust the bottom and then just call grabJarHarder() again
-                if lidRotationCount > 3:
-                    print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
-                    dropProgram()
-                    return
-                if not stillGrabbing ():
-                    print("User has let go of handle: Retracting arms to initial positions and exiting program.")
-                    dropProgram()
-                    return
-                if consecutiveSlips < 50 and not slipDetect(sensor1, sensor2, sensor3):
-                    #if arent slipping now and havent for a bit
-                    break
 
 try:
     main()
 
 except KeyboardInterrupt:
     print("Program interrupted by KeyboardInterrupt.\nRetracting arms to original position.")
-    dropProgram()
 finally:
     dropProgram()
     print("Program done\nRetracting to original position.")
