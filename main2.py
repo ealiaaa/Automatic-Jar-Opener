@@ -2,38 +2,30 @@ import time, sys
 from gpiozero import Motor,  LED
 from sensor_library import Force_Sensing_Resistor # recommended to import *
 
-sensorFrequency = 50
+TICK_PERIOD:int = 0.1 #controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
+AYYYYYWHAT:int = 50
+REQUIRED_HANDLE_FORCE:int = 50 # required sustained grip value to detect grip on handle
+SAMPLE_WINDOW_LEN:int = 10  # number of samples per window (~0.1s rn)
 
-gripValue = 100
-windowLen = 5
-# number of samples per window (~0.1s rn)
-#adjust so that you have reasonable windowLen to compare but it'll check slip as frequently as possible
+MaxAcceptableVariation:int = 1
+SlipConfirmThreshold:int = 3     # num of slips that need to happen in a row to confirm that hey its actually slipping
 
-MaxAcceptableVariation = 1
-SlipConfirmThreshold = 3     # num of slips that need to happen in a row to confirm that hey its actually slipping
+consecutiveSlips:int = 0 # tracks number of slips in a row *across functions*
+timeRotated:int = 0 # total time rotated, stanrdized to speed 1. Used in func dropProgram to 
+consecutiveGripValuesFailed = 0 # tracks number of grip values failed in a row *across functions*
+sensor1Recent:list = []
+sensor2Recent:list = [] # buffers to store recent force values to calculate variation and slip
+# sensor3Recent = [] # probably unused in final version
 
-consecutiveSlips = 0 # only initialize to 0 ONCE at the TOP of the program
-# needs to be global and untouched between function calls to count consecutive slips
-
-sensor1Recent = [] # buffers to store recent force values to calculate variation and slip
-sensor2Recent = []
-sensor3Recent = []
-
-
-lidRotationCount = 0
-
-timeRotatedFast = 0
-timeRotatedSlow = 0
-# ALERT I've search replaced all rackPosition for 'timeRotate' without a d. I
-# 've yet to properly rename them tho, ill add that and the variable speeds soon.
+# ALERT I've search replaced all rackPosition for 'timeRotate' without a d.
+# I've yet to properly rename them tho, ill add that and the variable speeds soon.
 # NOTE add graudal torque increase and decreases to ease adjustment and lower wrist injury chance
 # add leds
-
 
 sensorTop = Force_Sensing_Resistor(0)
 sensor1 = Force_Sensing_Resistor(1)
 sensor2 = Force_Sensing_Resistor(2)
-sensor3 = Force_Sensing_Resistor(3)
+# sensor3 = Force_Sensing_Resistor(3) # probably unused in final version
 
 motorTighten = Motor(forward = 16, backward=20)
 motorOpen = Motor(forward=1, backward = 7)
@@ -50,21 +42,17 @@ def readSensor(sensor):
     return sensor.force_raw()
 
 
-
-def forceAverage123():
-    return (readSensor(sensor1) + readSensor(sensor2) + readSensor(sensor1)) / 3
-
+def forceAverage12():
+    return (readSensor(sensor1) + readSensor(sensor2) ) /2 # removed  + readSensor(sensor3) as we probably only have 2 bottom sensors
 
 
 def readyStart ():
     while True:
         heldCounter = 0
-
-        while readSensor(sensorTop) > gripValue:
-            heldCounter += 1 #/sensorFrequency?
-            time.sleep(1/sensorFrequency)
-
-            if heldCounter >= 4:           # if held down for more than 4 seconds
+        while readSensor(sensorTop) > REQUIRED_HANDLE_FORCE:
+            heldCounter += 1
+            time.sleep(TICK_PERIOD)
+            if heldCounter >= 5:           # if held down for more than 4 seconds
                 print("Starting lid grip sequence")
                 return
 
@@ -72,27 +60,26 @@ def readyStart ():
 
 def stillGrabbing ():
     global consecutiveGripValuesFailed
-    consecutiveGripValuesFailed = 0
+     # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
 
-    if readSensor(sensorTop) < GripValue:
+    if True: #readSensor(sensorTop) < REQUIRED_HANDLE_FORCE:
         consecutiveGripValuesFailed += 1
-
-        if consecutiveGripValuesFailed > 4:
-            # SET 25 to a reasonable length of grip values to fail to be absolutely sure that they have in fact, let go of the device.
-            # take into account how this will work with the frequency and period
+        if consecutiveGripValuesFailed >= 5: 
             return False
-    if consecutiveGripValuesFailed > 4:
-        return False
-
-    consecutiveGripValuesFailed = 0
-    return True
+        else:
+            return True
+# 5 because 1 would be susceptible to sensor variations, but -> 5 (half a second of sensor time when considering TICK_PERIOD) ->
+# is still short enough to allow for quick recognition of handle release
+    else:
+        consecutiveGripValuesFailed = 0
+        return True
 
 
 
 def grabJar():
     global timeRotatedSlow
 
-    if forceAverage123() < 2.1 : # SET to a bit more than the force you expect to need to turn the jar
+    if forceAverage12() < 2.1 : # SET to a bit more than the force you expect to need to turn the jar
         motorTighten.forward(0.5) # turn FAST but only for a bit
         time.sleep(0.2)
         timeRotateSlow += 0.2 # DISTANCE rack moves based on how much the DC motor moves
@@ -104,7 +91,7 @@ def grabJar():
 def grabJarHarder():
     global timeRotate
 
-    if forceAverage123() < 5 : # SET to a a bit under the max amount of stress u think the jar can take
+    if forceAverage12() < 5 : # SET to a a bit under the max amount of stress u think the jar can take
         motorTighten.forward(1) # turn SLOWLY but only for a bit
         time.sleep(0.2)
         timeRotate += 0.2 # DISTANCE rack moves based on how much the DC motor moves
@@ -125,10 +112,7 @@ def twist(): # MAKE THIS SLOWER!
 
     timeRotate += 0.000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
     #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
-    if lidRotationCount > 3:
-        print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
-        return True
-    return False
+
 
 
 
@@ -143,6 +127,9 @@ def twistFaster(): # MAKE THIS ACTUALLY TWIST FASTER
 
     timeRotate += 0.000000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
     #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
+
+
+def isOpen():
     if lidRotationCount > 3:
         print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
         return True
@@ -190,12 +177,12 @@ def slipDetect ():
     # would be bad if one added nothing or "None" to a list instead of an integer
     # or if list 2 has more entries than list 3 or something
 
-    if len(sensor1Recent) > windowLen:
+    if len(sensor1Recent) > SAMPLE_WINDOW_LEN:
         sensor1Recent.pop(0)
         sensor2Recent.pop(0)
         sensor3Recent.pop(0)
 
-    if len(sensor1Recent) < windowLen:
+    if len(sensor1Recent) < SAMPLE_WINDOW_LEN:
         return False
 
 
