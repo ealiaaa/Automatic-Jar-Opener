@@ -11,9 +11,10 @@ MaxAcceptableVariation:int = 1
 SlipConfirmThreshold:int = 3     # num of slips that need to happen in a row to confirm that hey its actually slipping
 
 consecutiveSlips:int = 0 # tracks number of slips in a row *across functions*
-timeRotated:int = 0 # total time rotated, stanrdized to speed 1. Used in func dropProgram to 
-consecutiveGripValuesFailed = 0 # tracks number of grip values failed in a row *across functions*
-sensor1Recent:list = []
+timeGrabbed:int = 0 # total time rotated for motorTighten, stanrdized to speed 1. collected in func jarGrabbed 
+timeTwisted:int = 0 # total time rotated for motorOpen, stanrdized to speed 1. collected in func twist
+# both of the above used in func dropProgram to return all motors to initial position
+consecutiveGripValuesFailed = 0 # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
 sensor2Recent:list = [] # buffers to store recent force values to calculate variation and slip
 # sensor3Recent = [] # probably unused in final version
 
@@ -56,85 +57,48 @@ def readyStart ():
                 print("Starting lid grip sequence")
                 return
 
-# merge ready start and stillGrabbing
+# merge ready start and letGo
 
-def stillGrabbing ():
+def letGo ():
     global consecutiveGripValuesFailed
-     # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
 
-    if True: #readSensor(sensorTop) < REQUIRED_HANDLE_FORCE:
+    if readSensor(sensorTop) < REQUIRED_HANDLE_FORCE:
         consecutiveGripValuesFailed += 1
         if consecutiveGripValuesFailed >= 5: 
-            return False
-        else:
             return True
+        else:
+            return False
 # 5 because 1 would be susceptible to sensor variations, but -> 5 (half a second of sensor time when considering TICK_PERIOD) ->
 # is still short enough to allow for quick recognition of handle release
     else:
         consecutiveGripValuesFailed = 0
-        return True
-
-
-
-def grabJar():
-    global timeRotatedSlow
-
-    if forceAverage12() < 2.1 : # SET to a bit more than the force you expect to need to turn the jar
-        motorTighten.forward(0.5) # turn FAST but only for a bit
-        time.sleep(0.2)
-        timeRotateSlow += 0.2 # DISTANCE rack moves based on how much the DC motor moves
         return False
-    return True
 
-# CONSIDER consolidate timeRotatedSlow and timeRotated based on the rotation speed
 
-def grabJarHarder():
-    global timeRotate
+def jarGrabbed(grabSpeed:int, gripTo:int):   # 150 and 200!
+    global timeGrabbed
 
-    if forceAverage12() < 5 : # SET to a a bit under the max amount of stress u think the jar can take
-        motorTighten.forward(1) # turn SLOWLY but only for a bit
-        time.sleep(0.2)
-        timeRotate += 0.2 # DISTANCE rack moves based on how much the DC motor moves
+    if forceAverage12() < gripTo : # 150 is the initial, slower and weaker jar grip speed
+        motorTighten.forward(grabSpeed)
+        time.sleep(0.1)
+        motorTighten.stop()
+        timeRotated += 0.1*grabSpeed
         return False
     return True
 
 
+def twist(twistSpeed:int):
+    global timeTwisted
 
+    motorOpen.forward(twistSpeed)
+    time.sleep(0.1)
+    motorTighten.stop()
+    timeTwisted += 0.1*twistSpeed
 
-def twist(): # MAKE THIS SLOWER!
-    global lidRotationCount
-
-    DCMotorSideways.turn(0.1) # twist jar lid at reasonable speed
-    DCMotorDown.turn(0.000001 ) # depends on sideways box gear ratio and DCMotorSideways speed/amount turned
-    ## for every revolution the bottom mechanism does, the DCMotorDown will have to complete one as well to maintain jar squeeze levels
-
-    lidRotationCount += 0.05 # amount of complete revolutoins accomplished by once run of this function
-
-    timeRotate += 0.000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
-    #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
-
-
-
-
-def twistFaster(): # MAKE THIS ACTUALLY TWIST FASTER 
-    global lidRotationCount
-
-    DCMotorSideways.turn(0.01) # Turn jar lid slower b/c it was slipped
-    DCMotorDown.turn(0.000000001 ) # depends on sideways box gear ratio and DCMotorSideways speed/amount turned
-    ## for every revolution the bottom mechanism does, the DCMotorDown will have to complete one as well to maintain jar squeeze levels
-
-    lidRotationCount += 0.005 # amount of complete revolutoins accomplished by once run of this function
-
-    timeRotate += 0.000000001 # DISTANCE rack moves based on how much the DCmotorDOWN moves
-    #lowkey you might just be able to get rid of this and just spam grabJar instead in main()
-
-
-def isOpen():
-    if lidRotationCount > 3:
+    if timeTwisted > 9: # 9 is the currect ESTIMATE of how long itll take t
         print("Lid sucessfully opened: Retracting arms to initial position and dropping lid.")
         return True
     return False
-
 
 
 def dropProgram():
@@ -143,7 +107,6 @@ def dropProgram():
    # completely open racks back to their initial, retracted timeRotate
     # CONVERT timeRotate to a meaningful amount of revolutions for the down motor to spin to bring the racks back
     # BE CAREFUL. THIS CAN STRIP THE GEARS and that would be annoying
-
 
 
 def variation(data):
@@ -159,11 +122,9 @@ def variation(data):
     return averageVariation
 '''
 **2 makes sure that a positive and a negative deviation don't cancel each other out
-# abs() could also do that but **2 or **4 or a bigger number also strongly penalizes sudden spikes
+abs() could also do that but **2 or **4 or a bigger number also strongly penalizes sudden spikes
 so if it slips, the variation is suddenly super massive, making it more obvious
 '''
-
-
 
 
 def slipDetect ():
@@ -204,26 +165,29 @@ def slipDetect ():
 
 
 
-
-
 def tick():
-    if grabJar():
-        if not twist():
-            if slipDetect():
-                if grabJarHarder():
-                    if twistFaster():
-                        return False
-        return False
+    if slipDetect():
+        if jarGrabbed(1,200):
+            if twist(1):
+                return True
+            else:
+                return letGo()
+    else:
+        if jarGrabbed(0.5,150):
+            if twist(0.5):
+                return True
+            else:
+                return letGo()
 
-    return stillGrabbing()
+    return letGo()
 
 def main():
     print("Waiting for user to grip...")
-    readyStart()  # can also be rewritten as a ticked function if you want
+    readyStart()  # waits until it detects user holding handle for more than 0.5s in a row
 
-    running = True
-    while running:
-        running = tick()  # returns False if program should exit
+    opened = False
+    while not opened:
+        opened = tick()  # returns True for the program to exit
         time.sleep(TICK_DELAY)
 
 
