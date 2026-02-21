@@ -2,64 +2,78 @@ import time, sys
 from gpiozero import Motor,  LED
 from sensor_library import Force_Sensing_Resistor # recommended to import *
 
-TICK_PERIOD:int = 0.1 #controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
-AYYYYYWHAT:int = 50
-REQUIRED_HANDLE_FORCE:int = 50 # required sustained grip value to detect grip on handle
-SAMPLE_WINDOW_LEN:int = 10  # number of samples per window (~0.1s rn)
+'''
+Constants
+'''
+TICK_PERIOD = 0.1 #controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
+REQUIRED_HANDLE_FORCE = 50 # required sustained grip value to detect grip on handle
+SAMPLE_WINDOW_LEN = 10  # number of samples per window (~0.1s rn)
+MAX_ACCEPTABLE_VARIATION = 1
+SLIP_CONFIRMATION_THRESHOLD = 3     
+# num of slips that need to happen in a row to confirm that it's *actually* slipping and not a sensor fluke
 
-MaxAcceptableVariation:int = 1
-SlipConfirmThreshold:int = 3     # num of slips that need to happen in a row to confirm that hey its actually slipping
-
-consecutiveSlips:int = 0 # tracks number of slips in a row *across functions*
-timeGrabbed:int = 0 # total time rotated for motorTighten, stanrdized to speed 1. collected in func jarGrabbed 
-timeTwisted:int = 0 # total time rotated for motorOpen, stanrdized to speed 1. collected in func twist
+'''
+Variables
+'''
+##### consecutiveSlips = 0 # tracks number of slips in a row *across functions*
+timeGrabbed = 0 # total time rotated for motorGrab, stanrdized to speed 1. collected in func jarGrabbed 
+timeTwisted = 0 # total time rotated for motorTwist, stanrdized to speed 1. collected in func twist
 # both of the above used in func dropProgram to return all motors to initial position
 consecutiveGripValuesFailed = 0 # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
-sensor2Recent:list = [] # buffers to store recent force values to calculate variation and slip
-# sensor3Recent = [] # probably unused in final version
+sensor1Recent = [] # buffers to store recent force values to calculate variation and slip
+sensor2Recent = [] # buffers to store recent force values to calculate variation and slip
 
-# ALERT I've search replaced all rackPosition for 'timeRotate' without a d.
-# I've yet to properly rename them tho, ill add that and the variable speeds soon.
-# NOTE add graudal torque increase and decreases to ease adjustment and lower wrist injury chance
-# add leds
+'''
+TODO
+PERHAPS add graudal torque increase and decreases to ease adjustment and lower wrist injury chance
 
+- add leds
+- make sure that we meet all complexity and function requirements from the project module
+- check consecutiveSlips necessity with william?
+    - i dont think that would even trigger ngl it also depends on the material of the grabby belt, also ->
+    - theres just so many variables, its gonna be hard to find a good estimate for that value
+        - maybe we can include it and set it to 1 ->
+        - so functionally it does nothing but its good for code complexity and its a good idea for a final product
+        - to revert back to the old, remove everything between ##########(10#), and uncomment all #####(5#) (replace ##### with blank)
+'''
+
+'''
+Initialize force sensors, motors and LEDs
+'''
 sensorTop = Force_Sensing_Resistor(0)
 sensor1 = Force_Sensing_Resistor(1)
 sensor2 = Force_Sensing_Resistor(2)
-# sensor3 = Force_Sensing_Resistor(3) # probably unused in final version
 
-motorTighten = Motor(forward = 16, backward=20)
-motorOpen = Motor(forward=1, backward = 7)
+
+motorGrab = Motor(forward = 16, backward=20)
+motorTwist = Motor(forward=1, backward = 7)
 
 red = LED(26)
 green = LED(19)
 
-
-def rollingAverage():
-    pass
-
-
+'''
+Function Definitions
+'''
 def readSensor(sensor):
     return sensor.force_raw()
 
 
 def forceAverage12():
-    return (readSensor(sensor1) + readSensor(sensor2) ) /2 # removed  + readSensor(sensor3) as we probably only have 2 bottom sensors
+    return (readSensor(sensor1) + readSensor(sensor2) ) /2 
 
 
-def readyStart ():
+def readyStart (): # waits infinity until topSensor detects hand for more than 0.5 seconds
     while True:
         heldCounter = 0
         while readSensor(sensorTop) > REQUIRED_HANDLE_FORCE:
             heldCounter += 1
             time.sleep(TICK_PERIOD)
-            if heldCounter >= 5:           # if held down for more than 4 seconds
+            if heldCounter >= 5:
                 print("Starting lid grip sequence")
                 return
 
-# merge ready start and letGo
 
-def letGo ():
+def letGo (): # returns True if user lets go of handle for more than 0.5 seconds ish
     global consecutiveGripValuesFailed
 
     if readSensor(sensorTop) < REQUIRED_HANDLE_FORCE:
@@ -68,31 +82,31 @@ def letGo ():
             return True
         else:
             return False
-# 5 because 1 would be susceptible to sensor variations, but -> 5 (half a second of sensor time when considering TICK_PERIOD) ->
+# 5 because 1 would be susceptible to sensor variations, but -> 5 (0.5 seconds ish when considering TICK_PERIOD) ->
 # is still short enough to allow for quick recognition of handle release
     else:
         consecutiveGripValuesFailed = 0
         return False
 
 
-def jarGrabbed(grabSpeed:int, gripTo:int):   # 150 and 200!
+def jarGrabbed(grabSpeed, grabTo): # tightens grabbing belt until grabTo value, returns if grabTo Value reached yet or not
     global timeGrabbed
 
-    if forceAverage12() < gripTo : # 150 is the initial, slower and weaker jar grip speed
-        motorTighten.forward(grabSpeed)
+    if forceAverage12() < grabTo : # 150 is the initial, slower and weaker jar grip speed
+        motorGrab.forward(grabSpeed)
         time.sleep(0.1)
-        motorTighten.stop()
+        motorGrab.stop()
         timeRotated += 0.1*grabSpeed
         return False
     return True
 
 
-def twist(twistSpeed:int):
+def twist(twistSpeed): # twists entire jar lid grip mechanism open and returns whether lid is open or not
     global timeTwisted
 
-    motorOpen.forward(twistSpeed)
+    motorTwist.forward(twistSpeed)
     time.sleep(0.1)
-    motorTighten.stop()
+    motorTwist.stop()
     timeTwisted += 0.1*twistSpeed
 
     if timeTwisted > 9: # 9 is the currect ESTIMATE of how long itll take t
@@ -101,12 +115,11 @@ def twist(twistSpeed:int):
     return False
 
 
-def dropProgram():
-    pass
-   # motorTighten.turn(-timeRotate)
-   # completely open racks back to their initial, retracted timeRotate
-    # CONVERT timeRotate to a meaningful amount of revolutions for the down motor to spin to bring the racks back
-    # BE CAREFUL. THIS CAN STRIP THE GEARS and that would be annoying
+def dropProgram(motor, duration): # reverses motors back to initial positions exactly
+    motor.backward(1)
+    time.sleep(duration)
+    motor.stop()
+
 
 
 def variation(data):
@@ -128,11 +141,10 @@ so if it slips, the variation is suddenly super massive, making it more obvious
 
 
 def slipDetect ():
-    global consecutiveSlips
+    ###### global consecutiveSlips
 
     sensor1Recent.append( readSensor(sensor1) )
     sensor2Recent.append( readSensor(sensor2) )
-    sensor3Recent.append( readSensor(sensor3) )
 
     # make sure all the 3 sensors come online and have real values at the same time
     # would be bad if one added nothing or "None" to a list instead of an integer
@@ -141,7 +153,6 @@ def slipDetect ():
     if len(sensor1Recent) > SAMPLE_WINDOW_LEN:
         sensor1Recent.pop(0)
         sensor2Recent.pop(0)
-        sensor3Recent.pop(0)
 
     if len(sensor1Recent) < SAMPLE_WINDOW_LEN:
         return False
@@ -149,37 +160,47 @@ def slipDetect ():
 
     variation1 = variation(sensor1Recent)
     variation2 = variation(sensor2Recent)
-    variation3 = variation(sensor3Recent)
-    variationMax = max(variation1, variation2, variation3)
+    variationMax = max(variation1, variation2)
 
-    if variationMax > MaxAcceptableVariation:
-        consecutiveSlips += 1
-    else:
-        consecutiveSlips = 0
-
-
-    if consecutiveSlips >= SlipConfirmThreshold:
+##########
+    if variationMax > MAX_ACCEPTABLE_VARIATION:
         return True
+    else:
+        return False
+##########
 
-    return False
+
+    ##### if variationMax > MAX_ACCEPTABLE_VARIATION:
+    #####     consecutiveSlips += 1
+    ##### else:
+    #####     consecutiveSlips = 0
+    
+    ##### if consecutiveSlips >= SLIP_CONFIRMATION_THRESHOLD:
+    #####     return True
+
+    ##### return False
 
 
 
 def tick():
     if slipDetect():
-        if jarGrabbed(1,200):
-            if twist(1):
-                return True
-            else:
-                return letGo()
+        grabSpeed = 0.5
+        grabTo = 150
+        twistSpeed = 0.5
     else:
-        if jarGrabbed(0.5,150):
-            if twist(0.5):
-                return True
-            else:
-                return letGo()
+        grabSpeed = 1
+        grabTo = 200
+        twistSpeed = 1
 
+
+    if not jarGrabbed(grabSpeed, grabTo):
+        return letGo()
+    
+    if twist(twistSpeed):
+        return True
+    
     return letGo()
+
 
 def main():
     print("Waiting for user to grip...")
@@ -191,10 +212,12 @@ def main():
         time.sleep(TICK_DELAY)
 
 
-
 try:
     main()
 
 finally:
-    dropProgram()
-    print("Program done\nRetracting to original position.")
+    print("Retracting Twisting motor to original position")
+    dropProgram(motorTwist, timeTwisted)
+    print("Retracting Grabbing motor to original position")
+    dropProgram(motorGrab,timeGrabbed)
+    print("Program done")
