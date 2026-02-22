@@ -119,7 +119,7 @@ def jarGrabbed(grabSpeed, grabTo): # tightens grabbing belt until grabTo value, 
     if rollingForceAverage12() < grabTo:
         motorGrab.forward(grabSpeed)
         timeRotated += 0.1*grabSpeed
-        triedGrab = 1
+        triedGrab = grabSpeed
         return False
     return True
 
@@ -130,7 +130,7 @@ def twist(twistSpeed): # twists entire jar lid grip mechanism open and returns w
 
     motorTwist.forward(twistSpeed)
     timeTwisted += 0.1*twistSpeed
-    triedTwist = 1
+    triedTwist = twistSpeed
 
     if timeTwisted > 9: # 9 is the currect ESTIMATE of how long itll take t
         print("Lid sucessfully opened")
@@ -138,7 +138,9 @@ def twist(twistSpeed): # twists entire jar lid grip mechanism open and returns w
     return False
 
 def printCurrent():
-    print("Top Force Sensor\tJar Force Sensor1\tJar Force Sensor2")
+    print("---")
+    print(f"Top Force Sensor: {readSensor(sensorTop)}\tJar Force Sensor1: {readSensor(sensor1)}\tJar Force Sensor2:  {readSensor(sensor1)}")
+    print(f"Red LED: \nGreen LED: \tGrabbing Motor Speed: {triedGrab}\tTwisting Motor Speed: {triedTwist}")
 
 
 def dropProgram(motor, duration): # reverses motors back to initial positions exactly
@@ -238,7 +240,7 @@ def main():
         motorGrab.stop()
         motorTwist.stop()
             
-        if tickCounter >= 5: # every 5 ticks, will trigger print function (dont want to print 10 lines per second, I can't read that)
+        if tickCounter >= 5: # every 5 ticks, will trigger print function ( once every 0.5 seconds)
             tickCounter = 0
             printCurrent()
             triedGrab = 0
