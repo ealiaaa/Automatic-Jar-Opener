@@ -1,0 +1,20 @@
+flowchart TD
+    Start([Round Sample])
+    Doing[Square Sample]
+    Doing2(Rounded Rectangle Sample)
+    Done{Diamond Sample}
+    A[[Subroutine Sample]]
+    B[(Cylinder Sample)]
+    C((Circle Sample))
+    D{{Hexagon Sample}}
+    E[\Parallelogram Sample/]
+    F[/Parallelogram Sample2/]
+
+    Start --> Doing
+    Start ==>|Thicker Arrow| Doing2
+    Doing2 -.->|Dotted Arrow| Doing
+    Doing <-->|Bidirectional| Done
+    Doing ---|No arrowhead| Done
+
+
+    
