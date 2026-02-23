@@ -6,21 +6,21 @@ from sensor_library import Force_Sensing_Resistor # recommended to import *
 Constants
 '''
 TICK_PERIOD = 0.1 #controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
+# ideally would be 0.05 or even smaller, but the 
 REQUIRED_HANDLE_FORCE = 50 # required sustained grip value to detect grip on handle
 SAMPLE_WINDOW_LEN = 10  # number of samples per window (~0.1s rn)
-MAX_ACCEPTABLE_VARIATION = 1
-SLIP_CONFIRMATION_THRESHOLD = 3     
+MAX_ACCEPTABLE_VARIATION = 1  
 # num of slips that need to happen in a row to confirm that it's *actually* slipping and not a sensor fluke
 
 '''
 Variables
 '''
-##### consecutiveSlips = 0 # tracks number of slips in a row *across functions*
+
 timeGrabbed = 0 # total time rotated for motorGrab, stanrdized to speed 1. collected in func jarGrabbed 
 timeTwisted = 0 # total time rotated for motorTwist, stanrdized to speed 1. collected in func twist
 # both of the above used in func dropProgram to return all motors to initial position
 triedGrab = 0
-triedTwist = 0 # FLAGS used in func tick to communicate to func printCurrent what motors where used
+triedTwist = 0 # FLAGS used in func tick to communicate to func printStatuses what motors where used
 consecutiveGripValuesFailed = 0 # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
 sensor1RecentVar = []
 sensor2RecentVar = [] # buffers to store recent force values to calculate rolling variation and slip
@@ -73,7 +73,7 @@ def rollingForceAverage12(): #rolling average of bottom 2 force sensors
     sensor1RecentAvg.append( readSensor(sensor1) )
     sensor2RecentAvg.append( readSensor(sensor2) )
 
-    if len(sensor1RecentVar) > SAMPLE_WINDOW_LEN:
+    if len(sensor1RecentAvg) > SAMPLE_WINDOW_LEN:
         sensor1RecentAvg.pop(0)
         sensor2RecentAvg.pop(0)
 
@@ -96,7 +96,7 @@ def readyStart (): # waits infinity until topSensor detects hand for more than 0
                 return
 
 
-def UsrLetGo (): # returns True if user lets go of handle for more than 0.5 seconds ish
+def shouldAbort (): # returns True if user lets go of handle for more than 0.5 seconds ish
     global consecutiveGripValuesFailed
 
     if readSensor(sensorTop) < REQUIRED_HANDLE_FORCE:
@@ -118,7 +118,7 @@ def jarGrabbed(grabSpeed, grabTo): # tightens grabbing belt until grabTo value, 
 
     if rollingForceAverage12() < grabTo:
         motorGrab.forward(grabSpeed)
-        timeRotated += 0.1*grabSpeed
+        timeGrabbed += TICK_PERIOD*grabSpeed
         triedGrab = grabSpeed
         return False
     return True
@@ -129,7 +129,7 @@ def twist(twistSpeed): # twists entire jar lid grip mechanism open and returns w
     global triedTwist
 
     motorTwist.forward(twistSpeed)
-    timeTwisted += 0.1*twistSpeed
+    timeTwisted += TICK_PERIOD*twistSpeed
     triedTwist = twistSpeed
 
     if timeTwisted > 9: # 9 is the currect ESTIMATE of how long itll take t
@@ -137,9 +137,9 @@ def twist(twistSpeed): # twists entire jar lid grip mechanism open and returns w
         return True
     return False
 
-def printCurrent():
+def printStatuses():
     print("---")
-    print(f"Top Force Sensor: {readSensor(sensorTop)}\tJar Force Sensor1: {readSensor(sensor1)}\tJar Force Sensor2:  {readSensor(sensor1)}")
+    print(f"Top Force Sensor: {readSensor(sensorTop)}\tJar Force Sensor1: {readSensor(sensor1)}\tJar Force Sensor2:  {readSensor(sensor2)}")
     print(f"Red LED: \nGreen LED: \tGrabbing Motor Speed: {triedGrab}\tTwisting Motor Speed: {triedTwist}")
 
 
@@ -169,6 +169,20 @@ abs() could also do that but **2 or **4 or a bigger number also amplifies smalle
 def slipDetect (): #calculates rolling **variation** of bottom 2 sensors, determines if excess variation is indicative of slippage
     ###### global consecutiveSlips
 
+    
+
+
+    variation1 = variation(sensor1RecentVar)
+    variation2 = variation(sensor2RecentVar)
+    variationMax = max(variation1, variation2)
+
+
+    if variationMax > MAX_ACCEPTABLE_VARIATION:
+        return True
+    else:
+        return False
+
+def collectRecentVar():
     sensor1RecentVar.append( readSensor(sensor1) )
     sensor2RecentVar.append( readSensor(sensor2) )
 
@@ -176,33 +190,12 @@ def slipDetect (): #calculates rolling **variation** of bottom 2 sensors, determ
     if len(sensor1RecentVar) > SAMPLE_WINDOW_LEN:
         sensor1RecentVar.pop(0)
         sensor2RecentVar.pop(0)
+        return True
 
     if len(sensor1RecentVar) < SAMPLE_WINDOW_LEN:
         return False
-
-
-    variation1 = variation(sensor1RecentVar)
-    variation2 = variation(sensor2RecentVar)
-    variationMax = max(variation1, variation2)
-
-##########
-    if variationMax > MAX_ACCEPTABLE_VARIATION:
-        return True
-    else:
-        return False
-##########
-
-
-    ##### if variationMax > MAX_ACCEPTABLE_VARIATION:
-    #####     consecutiveSlips += 1
-    ##### else:
-    #####     consecutiveSlips = 0
     
-    ##### if consecutiveSlips >= SLIP_CONFIRMATION_THRESHOLD:
-    #####     return True
-
-    ##### return False
-
+    return True
 
 
 def tick():
@@ -218,13 +211,13 @@ def tick():
 
     if not jarGrabbed(grabSpeed, grabTo):
         red.off()
-        return UsrLetGo()
+        return shouldAbort()
     
 
     if twist(twistSpeed):
         return True
     
-    return UsrLetGo()
+    return shouldAbort()
 
 
 def main():
@@ -242,7 +235,7 @@ def main():
         red.on()
 
         opened = tick()  # will return True for the program to exit
-        time.sleep(TICK_DELAY)
+        time.sleep(TICK_PERIOD)
         
         motorGrab.stop()
         motorTwist.stop()
@@ -250,7 +243,7 @@ def main():
             
         if tickCounter >= 5: # every 5 ticks, will trigger print function ( once every 0.5 seconds)
             tickCounter = 0
-            printCurrent()
+            printStatuses()
             triedGrab = 0
             triedTwist = 0
 
