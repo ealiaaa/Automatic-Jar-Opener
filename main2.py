@@ -217,8 +217,10 @@ def tick():
 
 
     if not jarGrabbed(grabSpeed, grabTo):
+        red.off()
         return UsrLetGo()
     
+
     if twist(twistSpeed):
         return True
     
@@ -231,14 +233,20 @@ def main():
     tickCounter = 0
 
     print("Waiting for user to grip...")
+    green.on()
     readyStart()  # waits until it detects user holding handle for more than 0.5s in a row
 
     opened = False
     while not opened:
+        green.on()
+        red.on()
+
         opened = tick()  # will return True for the program to exit
         time.sleep(TICK_DELAY)
+        
         motorGrab.stop()
         motorTwist.stop()
+        green.off()
             
         if tickCounter >= 5: # every 5 ticks, will trigger print function ( once every 0.5 seconds)
             tickCounter = 0
@@ -261,11 +269,15 @@ try:
     main()
 
 finally:
+    green.on()
+    red.on()
     print("Retracting Twisting motor to original position")
     dropProgram(motorTwist, timeTwisted)
     print("Retracting Grabbing motor to original position")
     dropProgram(motorGrab,timeGrabbed)
     print("Program done")
+    green.off()
+    red.off()
 
 
 '''

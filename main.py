@@ -48,7 +48,8 @@ def REDLEDFlash_Error():
         time.sleep(0.1)
         print("Unable to open this jar")
 
-def REDLEDStay_Running(Status):
+def REDLEDStay_Running(Status): # yeah this wouldnt work, it would run infinitly. no chance for status to update, so break never called
+    # also its just a single while loop in the function so return would be clearer and funcationally the same
     while Status == True:
         RedLED.on()
         time.sleep(0.1)
