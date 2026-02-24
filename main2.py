@@ -204,13 +204,13 @@ def slipDetect (): #calculates rolling **variation** of bottom 2 sensors, determ
     variationMax = max(variation1, variation2)
 
     if variationMax > MAX_ACCEPTABLE_VARIATION:
-        grabSpeed = 0.5
-        grabTo = 150
-        twistSpeed = 0
-    else:
         grabSpeed = 1
         grabTo = 200
         twistSpeed = 1
+    else:
+        grabSpeed = 0.5
+        grabTo = 150
+        twistSpeed = 0.5
 
 
 def sensorTick():
