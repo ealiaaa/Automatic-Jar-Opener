@@ -30,6 +30,8 @@ timeTwisted = 0 # total time rotated for motorTwist, stanrdized to speed 1. coll
 # both of the above used in func dropProgram to return all motors to initial position
 triedGrab = 0
 triedTwist = 0 # FLAGS used in func tick to communicate to func printStatuses what motors where used
+redState = "OFF"
+greenState = "OFF" # used to communicate to func printStatus whether the LEDs are OFF, ON or Flashing. 
 grabSpeed = 0.5 # motor speed between 0 and 1
 grabTo = 150 # raw force value between 0 and 255
 twistSpeed = 0.5 # motor speed between 0 and 1
@@ -135,7 +137,7 @@ def twist(twistSpeed): # twists entire jar lid grip mechanism open and returns w
 def printStatuses():
     print("---")
     print(f"Top Force Sensor: {readSensor(sensorTop)}\tJar Force Sensor1: {readSensor(sensor1)}\tJar Force Sensor2:  {readSensor(sensor2)}")
-    print(f"Red LED: \nGreen LED: \tGrabbing Motor Speed: {triedGrab}\tTwisting Motor Speed: {triedTwist}")
+    print(f"Red LED: {redState}\tGreen LED: {greenState}\tGrabbing Motor Speed: {triedGrab}\tTwisting Motor Speed: {triedTwist}")
 
 
 def dropProgram(motor, duration): # reverses motors back to initial positions exactly
@@ -220,11 +222,13 @@ def sensorTick():
 def motorTick():
     if not jarGrabbed(grabSpeed, grabTo):
         red.off() # flashes red when only trying to grip the lid
+        redState = "Flashing"
         return False
     
     if twist(twistSpeed):
         return True
     red.on()
+    redState = "ON"
     return False
 
 
@@ -235,13 +239,14 @@ def main():
 
     print("Waiting for user to grip...")
     green.on()
+    greenState = "ON"
     readyStart()  # waits until it detects user holding handle for more than 0.5s in a row
-
+    greenState = "Flashing"
     next_tick = time.monotonic() # sets next_tick to a set large, steadily increasing number that is INDEPENDANT of compute time.
     opened = False
     while not opened:
         next_tick += TICK_PERIOD
-        
+
         sensorTick()
         
         if tickCounter == 50: # every 50 ticks, will trigger print function ( once every 0.5 seconds)
@@ -249,14 +254,15 @@ def main():
             triedGrab = 0
             triedTwist = 0
             tickCounter = 0
+        if tickCounter % 20 == 0 and tickCounter != 0:
+            green.off() # flashes green every 0.1 seconds while program running, green turns on in line 258
+            red.on() # solid red only when motorTick is trying to twist the lid
         if tickCounter % 10 == 0 and tickCounter != 0: # every 10 ticks will trigger motors to update their condition (motors cant on/off faster than 0.1 s)
             motorGrab.stop()
             motorTwist.stop()
             green.on()
             opened = motorTick()  # will return True for the program to exit (should abort will exit direcctly with exit())
-        if tickCounter % 20 == 0 and tickCounter != 0:
-            green.off() # flashes green every 0.1 seconds while program running, green turns on in line 258
-            red.on() # solid red only when motorTick is trying to twist the lid
+
         if tickCounter >= 100: # resets tickCounter every second (100 ticks)
             tickCounter = 0
         
@@ -275,6 +281,9 @@ try:
 finally:
     green.on()
     red.on()
+    greenState = "ON"
+    redState= "ON"
+    printStatuses()
     print("Retracting Twisting motor to original position")
     dropProgram(motorTwist, timeTwisted)
     print("Retracting Grabbing motor to original position")
