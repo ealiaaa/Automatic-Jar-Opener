@@ -1,0 +1,193 @@
+import time
+import threading
+
+from gpiozero import Motor,  LED
+from sensor_library import Force_Sensing_Resistor # recommended to import *
+
+
+#$$$ Define global variables
+is_running = True
+Handle_Gripping_Fail_Time = 0
+Tighten_Lid_Time = 0
+
+
+is_twisting = True
+
+#Thresholds:
+Gripping_Lid_Time_Limit = ???
+
+
+        
+        
+
+
+def Jar_Grab():
+    global Tighten_Lid_Time
+    if SensorReading(??1??) < GripValue:
+        motorTighten.forward(0.5) # turn SLOWLY
+        time.sleep(0.2)
+        motorTighten.stop()
+        Tighten_Lid_Time += 0.2
+
+        if Tighten_Lid_Time > Gripping_Lid_Time_Limit: # SET to a reasonable amount of time to try tightening the lid before giving up
+            print("Unable to grip this JAR")
+            return "Error"
+    
+    else:
+        print("Jar is gripped")
+        return "SUCCESS"
+
+
+
+def Jar_Grab_One_More():
+    global Tighten_Lid_Time
+    
+    motorTighten.forward(0.5) # turn SLOWLY
+    time.sleep(0.2)
+    motorTighten.stop()
+    Tighten_Lid_Time += 0.2 
+
+
+
+def Handle_Gripping_Check():
+    global Handle_Gripping_Fail_Time
+    for i in range(10):
+        if SensorReading(??2??) < GripValue:
+            Handle_Gripping_Fail_Time += 1
+        time.sleep(0.05)
+
+        if Handle_Gripping_Fail_Time > 3: # SET to a reasonable amount of time to fail the gripping check before giving up
+            print("Unable to grip this HANDLE")
+            return False
+
+    return True
+
+
+
+def Handle_Gripping_Thread():
+    global is_running
+    while is_running:
+        if not Handle_Gripping_Check():
+            Drop_Program()
+            is_running = False
+            Drop_Program()
+            return
+
+        time.sleep(0.05) # Gap between two detections
+
+
+    
+
+def variation(data):
+    total = 0
+    average = sum(data) / len(data)
+
+    for reading in data:
+        deviation = reading - average
+        total += (deviation) ** 2
+
+    averageVariation = total/len(data)
+
+    return averageVariation
+
+def Slip_Detection():
+    global is_twisting
+    Sensor_List = []
+    for i rin range (20):
+        Sensor_List.append(readSensor(sensorSlip))
+        time.sleep(0.05) # SET to a reasonable frequency for slip detection
+    if variation(Sensor_List) <= MaxAcceptableVariation: # SET to a reasonable threshold for slip detection
+        is_twisting = True
+        return True
+    elif variation(Sensor_List) > MaxAcceptableVariation: # SET to a reasonable threshold for slip detection
+        is_twisting = False
+        return False
+
+def Twist_Lid():
+    global is_twisting
+    global Rotate_Lid_Time
+    global Twisting_Fail_Time
+
+    while True:
+        
+        motorOpen.forward(0.2) # turn SLOWLY
+        
+        Slip_Detection()
+        
+        Rotate_Lid_Time += 1
+        motorOpen.stop()
+
+        if is_twisting == False:
+            print("Lid is slipping, trying to grip the lid tighter...")
+            Jar_Grab_One_More()
+            motorOpen.forward(0.05) #turn even slower
+
+            Slip_Detection()
+
+            Rotate_Lid_Time -= 1
+            Rotate_Lid_Time += 0.25
+            motorOpen.stop()
+
+            
+
+        if Rotate_Lid_Time > Gripping_Lid_Time_Limit: # SET to a reasonable amount of time to try twisting the lid before giving up
+            print("Unable to open this JAR")
+            Drop_Program()
+            return
+
+
+def Drop_Program():
+    motor.tighten.stop()
+    motor.tighten.backward(0.5)
+    time.sleep(Tighten_Lid_Time) # Loosen the lid a bit to release the jar
+    for i in range(20):
+        RED_LED.on()
+        time.sleep(0.1)
+        RED_LED.off()
+        time.sleep(0.1)
+    print("Program stopped safely.")
+
+
+
+def main():
+    global is_running
+    
+    # 1. Create the thread objects
+    # target points to the function you want to run
+
+    handle_thread = threading.Thread(target=Handle_Gripping_Thread)
+
+    # 2. Start the threads
+    handle_thread.start()
+    
+    time.sleep(4)
+    print("Starting automated gripping sequence...")
+
+
+    while True:
+        status = Jar_Grab()
+        if status == "SUCCESS":
+            print("Jar is gripped successfully!")
+            break
+            
+        if status == "ERROR":
+            print("Unable to grip this JAR")
+            Drop_Program()
+            return
+
+
+    
+    Jar_Grab_One_More()
+
+    print("Jar is gripped successfully!")
+    print("Starting to twist the lid...")
+         
+    Twist_Lid()
+
+    time.sleep(1)
+
+    is_running = False # stop the handle gripping check thread
+    handle_thread.join(timeout=1)
+    
+
+    Drop_Program() # this is a function that will stop all motors and reset the program to be ready for the next jar, it will also turn on the green LED for a certain amount of time to indicate that the program is stopping and then turn it off when done.
