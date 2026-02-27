@@ -1,0 +1,62 @@
+flowchart TD
+
+%% ---------------- STARTUP ----------------
+A[Program Start] --> B[Initialize Sensors, Motors, LEDs]
+B --> C[Print 'Waiting for user']
+C --> D[Green LED ON]
+D --> E[readyStart]
+
+E -->|Top sensor > REQUIRED_HANDLE_FORCE for 0.5s| F[Begin Main Tick Loop]
+
+%% ---------------- MAIN LOOP ----------------
+F --> G[Increment tickCounter\nUpdate next_tick]
+
+G --> H[sensorTick]
+H --> H1[checkSensors]
+H1 --> H2[slipDetect]
+H2 --> H3[rollingForceAverage12]
+H3 --> H4[shouldAbort]
+
+H4 -->|Handle released repeatedly| Z[SystemExit → finally]
+
+%% ------------- MOTOR UPDATE EVERY 10 TICKS -------------
+G --> I{tickCounter % 10 == 0?}
+
+I -->|Yes| J[Stop Motors\nAccumulate timeTwisted & timeGrabbed]
+J --> K[motorTick]
+K --> L{jarGrabbed?}
+
+L -->|No| M[MotorGrab.forward\nRed Flashing]
+M --> F
+
+L -->|Yes| N[twist]
+N --> O{timeTwisted > 0.1?}
+
+O -->|No| P[MotorTwist.forward\nRed ON]
+P --> F
+
+O -->|Yes| Q[Lid Opened → opened=True]
+
+%% ------------- LED FLASH CONTROL -------------
+G --> R{tickCounter % 20 == 0?}
+R -->|Yes| S[Toggle Green Flash\nRed Solid if twisting]
+
+%% ------------- RESET TICK COUNTER -------------
+G --> T{tickCounter >= 100?}
+T -->|Yes| U[Reset tickCounter]
+U --> F
+T -->|No| F
+
+%% ---------------- EXIT LOOP ----------------
+Q --> V[Exit while loop]
+
+%% ---------------- FINALLY BLOCK ----------------
+Z --> W[Finally Block]
+V --> W
+
+W --> X[Turn LEDs ON\nStop Motors]
+X --> Y[Finalize timeTwisted & timeGrabbed]
+Y --> AA[Retract Twisting Motor\n ]
+AA --> BB[Retract Grabbing Motor\n]
+BB --> CC[Turn LEDs OFF\nPrint Status]
+CC --> DD[Program Done]
