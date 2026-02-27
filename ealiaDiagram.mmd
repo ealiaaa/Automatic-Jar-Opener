@@ -1,0 +1,90 @@
+flowchart TD
+
+subgraph STARTUP[Startup and wait for user]
+    A([Program Start]) --> B[Initialize hardware]
+    B --> C[Call main]
+    C --> D[Green LED on and print waiting message]
+    D --> E[readyStart loop waiting for grip]
+end
+    E -->|Grip held long enough| F[Set next_tick using monotonic clock]
+    F --> G{opened is False}
+
+    G -->|Yes| H[Increment tickCounter and update next_tick]
+    H --> I[Run sensorTick]
+subgraph sensorTick[sensorTick]
+    I --> I1[checkSensors]
+    I1 --> I2[slipDetect]
+    I2 --> I3[rollingForceAverage12]
+    I3 --> I4[shouldAbort]
+end
+    I4 --> J{tickCounter equals 20}
+    J -->|Yes| K[Print status and reset tried values]
+    J -->|No| L[Continue]
+
+    K --> L
+    L --> M{tickCounter mod 5 equals 0}
+subgraph motorTick
+    M -->|Yes| N[Stop motors]
+    N --> O[Accumulate timeGrabbed and timeTwisted]
+    O --> P[Run motorTick]
+    M -->|No| AB
+
+    P --> Q{Jar fully grabbed}
+
+    Q -->|No| R[Run motorGrab forward and flash red]
+    R --> AB
+
+    Q -->|Yes| T[Run twist]
+    T --> U{timeTwisted greater than 9}
+
+    U -->|Yes| V[Set opened as True]
+    U -->|No| W[Run motorTwist forward and red on]
+end
+    V --> W
+    W --> AB
+
+    AB{tickCounter mod 10 equals 0} -->|Yes| AC[Flash green and set red on]
+    AB -->|No| AD[Continue]
+
+    AC --> AD
+    AD --> AE{tickCounter >= 20}
+    AE -->|Yes| AF[Reset tickCounter]
+    AE -->|No| AG[Continue]
+
+    AF --> AG
+    AG --> AH[Sleep until next_tick]
+    AH --> G
+
+    G -->|No| Z[Exit Loop]
+subgraph Finally clause
+    Z --> FINALLY[Run finally block]
+
+    FINALLY --> F1[Stop motors]
+    F1 --> F2[Finalize accumulated times]
+    F2 --> F3[Retract twist motor]
+    F3 --> F4[Retract grab motor]
+    F4 --> F5[Turn LEDs off]
+    F5 --> END([Program End])
+end
+
+%% =======================
+%% STYLE DEFINITIONS
+%% =======================
+
+classDef startup fill:#d4f8d4,stroke:#2e7d32,stroke-width:2px,color:#000;
+classDef sensor fill:#d4e6ff,stroke:#1565c0,stroke-width:2px,color:#000;
+classDef motor fill:#ffe6cc,stroke:#ef6c00,stroke-width:2px,color:#000;
+classDef timing fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000;
+classDef shutdown fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000;
+classDef decision fill:#eeeeee,stroke:#424242,stroke-width:2px,color:#000;
+
+%% =======================
+%% CLASS ASSIGNMENTS
+%% =======================
+
+class A,B,C,D,E startup;
+class I,I1,I2,I3,I4 sensor;
+class N,O,P,Q,R,T,U,V,W motor;
+class F,H,J,K,L,M,AB,AC,AD,AE,AF,AG,AH timing;
+class Z,FINALLY,F1,F2,F3,F4,F5,END shutdown;
+class G,J,M,Q,U,AB,AE decision;
