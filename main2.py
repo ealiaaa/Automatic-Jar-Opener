@@ -253,6 +253,7 @@ def main():
     global grabStartTime
     global timeGrabbed
     global timeTwisted
+    global greenState
     tickCounter = 0
 
     print("Waiting for user to grip...")
@@ -281,11 +282,9 @@ def main():
             motorTwist.stop()
             if twistStartTime != None:
                 timeTwisted += (time.monotonic() - twistStartTime)*triedTwist
-                twistStartTime = None
-                
+                twistStartTime = None 
             if grabStartTime != None:
                 timeGrabbed += (time.monotonic() - grabStartTime)*triedGrab
-
                 grabStartTime = None
             # subtracts now from time motor started twisting, mutiplies by the speed to accumulate time rotating standardized to speed 1 only.
 
