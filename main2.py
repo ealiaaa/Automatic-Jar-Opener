@@ -6,39 +6,35 @@ from sensor_library import Force_Sensing_Resistor
 '''
 Constants
 '''
-TICK_PERIOD = 0.01 
-'''
-controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
+TICK_PERIOD = 0.05 # 20 times per second
 
-but 0.1 isnt fast enough to calculate real-time slippage at a reasonable rate, and the motors can't turn on and off faster than that
-'''
-###############SENSOR_FREQUENCY = 10 
-'''
-to solve this, each tick is subdivided into 10 subticks for the rolling lists for average and average variation ->
-to be completed refreshed every tick
-'''
+#controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
+
 REQUIRED_HANDLE_FORCE = 100 # required sustained grip value to detect grip on handle
-SAMPLE_WINDOW_LEN = 10  # number of samples per window (~0.1s rn)
-MAX_ACCEPTABLE_VARIATION = 1  
-# num of slips that need to happen in a row to confirm that it's *actually* slipping and not a sensor fluke
-
+SAMPLE_WINDOW_LEN = 10  # number of samples per window (~0.5s to collect)
+MAX_ACCEPTABLE_VARIATION = 1
 '''
 Variables
 '''
+# i have realized far too late that a class tracking the states would be better than almost 20 global variables
+
 grabStartTime = None
 twistStartTime = None # used in twist and jarGrabbed with time.monotonic() to calculate exaclty how long the motors have been rotating for.
 
 timeGrabbed = 0 # total time rotated for motorGrab, stanrdized to speed 1.
 timeTwisted = 0 # total time rotated for motorTwist, stanrdized to speed 1. 
 # both of the above used in func dropProgram to return all motors to initial position
+
 triedGrab = 0
-triedTwist = 0 # FLAGS used in func tick to communicate to func printStatuses what motors where used
+triedTwist = 0 # used to communicate to func printStatuses what the motors are doing
+
 redState = "OFF"
-greenState = "OFF" # used to communicate to func printStatus whether the LEDs are OFF, ON or Flashing. 
+greenState = "OFF" # used to communicate to func printStatus whether the LEDs are OFF, ON or Flashing.
+
 grabSpeed = 0.5 # motor speed between 0 and 1
 grabTo = 150 # raw force value between 0 and 255
 twistSpeed = 0.5 # motor speed between 0 and 1
-# above three only initialized here to not crash, assignment taken over quickly by slipDetect
+# assignment of above 3 taken over quickly by slipDetect
 rollingAverage = 0
 consecutiveGripValuesFailed = 0 # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
 
@@ -47,30 +43,17 @@ sensor2RecentVar = [] # buffers to store recent force values to calculate rollin
 sensor1RecentAvg = []
 sensor2RecentAvg = [] # buffers to store recent force values to calculate rolling average
 '''
-rolling average and rolling variation would be cleaner to break into 2 functions and a helper function that takes the rolling list
+rolling average and rolling variation would be cleaner to break into 2 functions and a helper/collector
+function that takes the rolling list, and the other 2 functions do the arithmetic,
 but the project specifically requests rolling average to be its own entire function 
-'''
-'''
-TODO
-PERHAPS 
-
-
-- check consecutiveSlips necessity with william?
-    - i dont think that would even trigger ngl it also depends on the material of the grabby belt, also ->
-    - theres just so many variables, its gonna be hard to find a good estimate for that value
-        - maybe we can include it and set it to 1 ->
-        - so functionally it does nothing but its good for code complexity and its a good idea for a final product
-        - to revert back to the old, remove everything between ##########(10#), and uncomment all #####(5#) (replace ##### with blank)
-
-
 '''
 
 '''
 Initialize force sensors, motors and LEDs
 '''
-sensorTop = Force_Sensing_Resistor(1)
-sensor1 = Force_Sensing_Resistor(2)
-sensor2 = Force_Sensing_Resistor(3)
+sensor1 = Force_Sensing_Resistor(1)
+sensor2 = Force_Sensing_Resistor(2)
+sensor3 = Force_Sensing_Resistor(3)
 
 
 motorGrab = Motor(forward = 16, backward=20)
@@ -83,14 +66,14 @@ green = LED(19)
 Sensor-based and helper Functions
 '''
 
-def readSensor(sensor): #returns raw sensor value of passed sensor when called, delay is implemented in func tick()
+def readSensor(sensor): #returns raw sensor value of passed sensor when called
     return sensor.force_raw()
 
 
 def readyStart (): # waits infinity until topSensor detects hand for more than 0.5 seconds
     while True:
         heldCounter = 0
-        while readSensor(sensorTop) > REQUIRED_HANDLE_FORCE:
+        while readSensor(sensor1) > REQUIRED_HANDLE_FORCE:
             heldCounter += 1
             time.sleep(TICK_PERIOD)
             if heldCounter >= 10:
@@ -99,10 +82,10 @@ def readyStart (): # waits infinity until topSensor detects hand for more than 0
 
 
 def printStatuses():
-    print(f"---znTop Force Sensor: {readSensor(sensorTop)}\tJar Force Sensor1: {readSensor(sensor1)}\tJar Force Sensor2:  {readSensor(sensor2)}\nRed LED: {redState}\tGreen LED: {greenState}\tGrabbing Motor Speed: {triedGrab}\tTwisting Motor Speed: {triedTwist}")
+    print(f"---znTop Force Sensor: {readSensor(sensor1)}\tJar Force Sensor1: {readSensor(sensor2)}\tJar Force Sensor2:  {readSensor(sensor3)}\nRed LED: {redState}\tGreen LED: {greenState}\tGrabbing Motor Speed: {triedGrab}\tTwisting Motor Speed: {triedTwist}")
 
 
-def dropProgram(motor, duration): # reverses motors back to initial positions exactly
+def dropProgram(motor, duration): # reverses motors back to initial positions
     motor.backward(1)
     time.sleep(duration)
     motor.stop()
@@ -111,9 +94,10 @@ def checkSensors(): # checks all the sensors, other functions refer to the value
     global topSensor
     global bottomSensor1
     global bottomSensor2
-    topSensor = readSensor(sensorTop)
-    bottomSensor1 = readSensor(sensor1)
-    bottomSensor2 = readSensor(sensor2)
+    topSensor = readSensor(sensor1)
+    bottomSensor1 = readSensor(sensor2)
+    bottomSensor2 = readSensor(sensor3)
+    
 
 
 def variation(data): # helper function to func slipDetect. returns average of amplified variation of each list item from list average
@@ -133,7 +117,7 @@ abs() could also do that but **2 or **4 or a bigger number also amplifies smalle
 '''
 
 def rollingForceAverage12(): #rolling average of bottom 2 force sensors
-    global rollingAverage # used to communicate with jarGrabbed to enable motor and sensor call isolation
+    global rollingAverage
     sensor1RecentAvg.append( bottomSensor1 )
     sensor2RecentAvg.append( bottomSensor2 )
 
@@ -146,7 +130,7 @@ def rollingForceAverage12(): #rolling average of bottom 2 force sensors
     avg1 = sum(sensor1RecentAvg) / len(sensor1RecentAvg)
     avg2 = sum(sensor2RecentAvg) / len(sensor2RecentAvg)
     
-    rollingAverage = (avg1+avg2)/2
+    rollingAverage = (avg1+avg2)/2 # used in jarGrabbed
 '''
 I would like to break slipDetect and rollingForceAverage12 into 1 function to collect the rolling window, and 2 functinos to process them
 but the rubric specifically wants the rolling Average to be ONE functions only.
@@ -173,14 +157,14 @@ def slipDetect (): #calculates rolling **variation** of bottom 2 sensors, determ
     variationMax = max(variation1, variation2)
 
     if variationMax > MAX_ACCEPTABLE_VARIATION:
-        grabSpeed = 1
+        grabSpeed = 0.4
         grabTo = 200
-        twistSpeed = 1
+        twistSpeed = 0.4
 ##        print("SLIPPING")
     else:
-        grabSpeed = 0.5
+        grabSpeed = 0.1
         grabTo = 150
-        twistSpeed = 0.5
+        twistSpeed = 0.1
 ##        print("NOT slipping")
 
 def shouldAbort (): # exits straight to finally clause if user lets go of handle for more than 5 times in a row
@@ -211,15 +195,15 @@ Motor-based functions
 def jarGrabbed(grabSpeed, grabTo): # tightens grabbing belt until grabTo value, returns if grabTo Value reached yet or not
     global triedGrab
     global grabStartTime
+    global rollingAverage
 
     if rollingAverage < grabTo:
         motorGrab.forward(grabSpeed)
         triedGrab = grabSpeed
 
-        if grabStartTime is None:
+        if grabStartTime == None:
             grabStartTime = time.monotonic()
-            # initializes time.monotonic to calculate exactly how long the motor has been twisting
-            # using just timein case of tick desync,     
+            # initializes time.monotonic to calculate exactly how long the motor has been twisting in case of tick desync     
         return False
     
     else:
@@ -234,12 +218,12 @@ def twist(twistSpeed):
     motorTwist.forward(twistSpeed)
     triedTwist = twistSpeed
 
-    if twistStartTime is None:
+    if twistStartTime == None:
         twistStartTime = time.monotonic()
         #initializes time.monotonic to calculate exactly how long the motor has been twisting in case of tick desync
 
 
-    if timeTwisted > 0.1:
+    if timeTwisted > 9:
         print("Lid successfully opened")
         return True
 
@@ -251,12 +235,11 @@ def motorTick():
     if not jarGrabbed(grabSpeed, grabTo):
         red.off() # flashes red when only trying to grip the lid
         redState = "Flashing"
-##        print("gripping lid")
         return False
     
     if twist(twistSpeed):
         return True
-##    print("twisting lid")
+
     red.on()
     redState = "ON"
     return False
@@ -265,7 +248,11 @@ def motorTick():
 
 def main():
     global triedGrab
+    global twistStartTime
     global triedTwist
+    global grabStartTime
+    global timeGrabbed
+    global timeTwisted
     tickCounter = 0
 
     print("Waiting for user to grip...")
@@ -285,36 +272,37 @@ def main():
 
         sensorTick()
         
-        if tickCounter == 50: # every 50 ticks, will trigger print function ( once every 0.5 seconds)
-            #printStatuses()
+        if tickCounter == 20: # every 20 ticks, will trigger print function ( once every second)
+            printStatuses()
             triedGrab = 0
             triedTwist = 0
-        if tickCounter % 10 == 0 and tickCounter != 0: # every 10 ticks will trigger motors to update their condition (motors cant on/off faster than 0.1 s)
+        if tickCounter % 5 == 0 and tickCounter != 0: # every 5 ticks will trigger motors to update their condition (motors cant on/off faster than 0.1 s)
             motorGrab.stop()
             motorTwist.stop()
-            if twistStartTime is not None:
+            if twistStartTime != None:
                 timeTwisted += (time.monotonic() - twistStartTime)*triedTwist
                 twistStartTime = None
-            if grabStartTime is not None:
+                
+            if grabStartTime != None:
                 timeGrabbed += (time.monotonic() - grabStartTime)*triedGrab
+
                 grabStartTime = None
             # subtracts now from time motor started twisting, mutiplies by the speed to accumulate time rotating standardized to speed 1 only.
 
             green.on()
             opened = motorTick()  # will return True for the program to exit (should abort will exit direcctly with exit())
 
-        if tickCounter % 20 == 0 and tickCounter != 0:
+        if tickCounter % 10 == 0 and tickCounter != 0:
             green.off() # flashes green every 0.1 seconds while program running, green turns on in line 258
             red.on() # solid red only when motorTick is trying to twist the lid
-
-        if tickCounter >= 100: # resets tickCounter every second (100 ticks)
+        if tickCounter >= 20: # resets tickCounter
             tickCounter = 0
-        ##print(tickCounter)
-            
-##        time.sleep(TICK_PERIOD)
-        sleep_time = next_tick-time.monotonic() # calculates how long to sleep for to keep tick rates exactly consistent considering compute time
+ 
+        sleep_time = next_tick-time.monotonic() # calculates how long to sleep for to keep tick rates consistent considering compute time
         if sleep_time > 0:
             time.sleep(sleep_time)
+        else:
+            print("tick went over")
             
         
         
@@ -325,15 +313,16 @@ try:
 finally:
     green.on()
     red.on()
-    greenState = redState ="ON"
+    greenState = redState = "ON"
     motorGrab.stop()
     motorTwist.stop()
 
-    #finalizes timeTwisted and timeGrabbed for dropProgram
-    if twistStartTime is not None:
+    if twistStartTime != None: #finalizes timeTwisted and timeGrabbed for dropProgram
         timeTwisted += (time.monotonic() - twistStartTime)*triedTwist
-    if grabStartTime is not None:
+        twistStartTime = None
+    if grabStartTime != None:
         timeGrabbed += (time.monotonic() - grabStartTime)*triedGrab
+        grabStartTime = None
 
     print("Retracting Twisting motor to original position")
     dropProgram(motorTwist, timeTwisted)
@@ -350,7 +339,9 @@ finally:
 
 '''
 Ideas for a final product
+
 Consider the Following:
+-    NOT having a billion global variables? its kinda hard to keep track of them in my head?
 
 -   a graudal torque increases and decreases to ease adjustment and lower wrist injury chance
 
@@ -358,8 +349,5 @@ Consider the Following:
 just 2 binary 'soft grip' and 'hard grip' states
 
 -   adding hysteresis to slipdetect to prevent rapidly oscillating states
-
--   a way to keep motors in continual rather than pulsed actualtion pattern?
-        while keeping tick system? the old while: True logic from the first model was more promising for this 
 '''
 
