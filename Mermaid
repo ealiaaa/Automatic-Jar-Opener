@@ -1,62 +1,72 @@
 flowchart TD
+    Start([Program Start]) --> Init[Initialize sensors, motors, LEDs\ngreen LED ON]
+    Init --> RS[readyStart\nWait for sensorTop > REQUIRED_HANDLE_FORCE\nfor 10 consecutive ticks ~0.1s]
+    RS --> MainLoop[Enter main loop\nopened = False\nnext_tick = time.monotonic]
 
-%% ---------------- STARTUP ----------------
-A[Program Start] --> B[Initialize Sensors, Motors, LEDs]
-B --> C[Print 'Waiting for user']
-C --> D[Green LED ON]
-D --> E[readyStart]
+    MainLoop --> TickInc[next_tick += TICK_PERIOD\ntickCounter += 1]
+    TickInc --> ST[sensorTick]
 
-E -->|Top sensor > REQUIRED_HANDLE_FORCE for 0.5s| F[Begin Main Tick Loop]
+    subgraph sensorTick [sensorTick - every tick]
+        CS[checkSensors\nread sensorTop, sensor1, sensor2]
+        CS --> SD[slipDetect\nappend to rolling var buffers]
+        SD --> VarCheck{variationMax >\nMAX_ACCEPTABLE_VARIATION?}
+        VarCheck -- Yes --> HardGrip[grabSpeed=1, grabTo=200\ntwistSpeed=1]
+        VarCheck -- No --> SoftGrip[grabSpeed=0.5, grabTo=150\ntwistSpeed=0.5]
+        HardGrip --> RFA[rollingForceAverage12\nappend to rolling avg buffers\nupdate rollingAverage]
+        SoftGrip --> RFA
+        RFA --> SA[shouldAbort\ncheck topSensor vs REQUIRED_HANDLE_FORCE]
+        SA --> AbortCheck{topSensor < threshold?}
+        AbortCheck -- Yes --> FailCount[consecutiveGripValuesFailed += 1]
+        FailCount --> FailLimit{>= 10 failures?}
+        FailLimit -- Yes --> Raise[raise SystemExit\n→ finally clause]
+        FailLimit -- No --> STEnd([return])
+        AbortCheck -- No --> ResetFail[consecutiveGripValuesFailed = 0]
+        ResetFail --> STEnd
+    end
 
-%% ---------------- MAIN LOOP ----------------
-F --> G[Increment tickCounter\nUpdate next_tick]
+    ST --> Tick50{tickCounter == 50?}
+    Tick50 -- Yes --> ResetFlags[triedGrab = 0\ntriedTwist = 0]
+    Tick50 -- No --> Tick10
+    ResetFlags --> Tick10
 
-G --> H[sensorTick]
-H --> H1[checkSensors]
-H1 --> H2[slipDetect]
-H2 --> H3[rollingForceAverage12]
-H3 --> H4[shouldAbort]
+    Tick10{tickCounter % 10 == 0?}
+    Tick10 -- Yes --> StopMotors[Stop motorGrab & motorTwist\nAccumulate timeGrabbed & timeTwisted\ngreenLED ON]
+    StopMotors --> MT[motorTick]
 
-H4 -->|Handle released repeatedly| Z[SystemExit → finally]
+    subgraph motorTick [motorTick]
+        JG{jarGrabbed?\nrollingAverage >= grabTo?}
+        JG -- No --> GrabFwd[motorGrab.forward grabSpeed\nred LED OFF\nreturn False]
+        JG -- Yes --> TW[twist twistSpeed\nmotorTwist.forward]
+        TW --> TwistDone{timeTwisted > 0.1?}
+        TwistDone -- Yes --> LidOpen[Print: Lid successfully opened\nreturn True]
+        TwistDone -- No --> RedOn[red LED ON\nreturn False]
+    end
 
-%% ------------- MOTOR UPDATE EVERY 10 TICKS -------------
-G --> I{tickCounter % 10 == 0?}
+    MT --> OpenedCheck{opened == True?}
+    OpenedCheck -- Yes --> Finally
+    OpenedCheck -- No --> Tick10b
+    Tick10 -- No --> Tick10b
 
-I -->|Yes| J[Stop Motors\nAccumulate timeTwisted & timeGrabbed]
-J --> K[motorTick]
-K --> L{jarGrabbed?}
+    Tick10b{tickCounter % 20 == 0?}
+    Tick10b -- Yes --> LEDFlash[green OFF / red ON\nflash pattern]
+    Tick10b -- No --> Tick100
+    LEDFlash --> Tick100
 
-L -->|No| M[MotorGrab.forward\nRed Flashing]
-M --> F
+    Tick100{tickCounter >= 100?}
+    Tick100 -- Yes --> ResetTick[tickCounter = 0]
+    Tick100 -- No --> SleepCalc
+    ResetTick --> SleepCalc
 
-L -->|Yes| N[twist]
-N --> O{timeTwisted > 0.1?}
+    SleepCalc[sleep_time = next_tick - time.monotonic\nif sleep_time > 0: sleep]
+    SleepCalc --> TickInc
 
-O -->|No| P[MotorTwist.forward\nRed ON]
-P --> F
+    subgraph Finally [finally clause - always runs on exit]
+        F1[green ON, red ON\nmotorGrab.stop, motorTwist.stop]
+        F1 --> F2[Finalize timeTwisted & timeGrabbed]
+        F2 --> F3[dropProgram motorTwist\nreverse for timeTwisted duration]
+        F3 --> F4[dropProgram motorGrab\nreverse for timeGrabbed duration]
+        F4 --> F5[green OFF, red OFF\nprintStatuses]
+        F5 --> End([Program Done])
+    end
 
-O -->|Yes| Q[Lid Opened → opened=True]
-
-%% ------------- LED FLASH CONTROL -------------
-G --> R{tickCounter % 20 == 0?}
-R -->|Yes| S[Toggle Green Flash\nRed Solid if twisting]
-
-%% ------------- RESET TICK COUNTER -------------
-G --> T{tickCounter >= 100?}
-T -->|Yes| U[Reset tickCounter]
-U --> F
-T -->|No| F
-
-%% ---------------- EXIT LOOP ----------------
-Q --> V[Exit while loop]
-
-%% ---------------- FINALLY BLOCK ----------------
-Z --> W[Finally Block]
-V --> W
-
-W --> X[Turn LEDs ON\nStop Motors]
-X --> Y[Finalize timeTwisted & timeGrabbed]
-Y --> AA[Retract Twisting Motor\n ]
-AA --> BB[Retract Grabbing Motor\n]
-BB --> CC[Turn LEDs OFF\nPrint Status]
-CC --> DD[Program Done]
+    Raise --> Finally
