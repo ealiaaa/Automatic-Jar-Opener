@@ -56,7 +56,7 @@ end
     AH --> G
 
     G -->|No| Z[Exit Loop]
-subgraph Finally clause
+subgraph Finally:
     Z --> FINALLY[Run finally block]
 
     FINALLY --> F1[Stop motors]
@@ -88,3 +88,7 @@ class N,O,P,Q,R,T,U,V,W motor;
 class F,H,J,K,L,M,AB,AC,AD,AE,AF,AG,AH timing;
 class Z,FINALLY,F1,F2,F3,F4,F5,END shutdown;
 class G,J,M,Q,U,AB,AE decision;
+style STARTUP fill:#002106,stroke:#000000,stroke-width:2px
+style Finally: fill:#380001,stroke:#000000,stroke-width:2px
+style sensorTick fill:#003438,stroke:#000000,stroke-width:2px
+style motorTick fill:#382500,stroke:#000000,stroke-width:2px
