@@ -6,12 +6,10 @@ from sensor_library import Force_Sensing_Resistor
 '''
 Constants
 '''
-TICK_PERIOD = 0.05 # 20 times per second
+TICK_PERIOD = 0.05 # program iterates ~20 times per second
 
-#controls how often the program iterates. also used outide func tick in func readyStart for the sensor read period
-
-REQUIRED_HANDLE_FORCE = 100 # required sustained grip value to detect grip on handle
-SAMPLE_WINDOW_LEN = 10  # number of samples per window (~0.5s to collect)
+REQUIRED_HANDLE_FORCE = 100
+SAMPLE_WINDOW_LEN = 10  # ~0.5s to collect 10
 MAX_ACCEPTABLE_VARIATION = 1
 '''
 Variables
@@ -21,8 +19,8 @@ Variables
 grabStartTime = None
 twistStartTime = None # used in twist and jarGrabbed with time.monotonic() to calculate exaclty how long the motors have been rotating for.
 
-timeGrabbed = 0 # total time rotated for motorGrab, stanrdized to speed 1.
-timeTwisted = 0 # total time rotated for motorTwist, stanrdized to speed 1. 
+timeGrabbed = 0
+timeTwisted = 0 # total time rotated for motors stanrdized to speed 1. 
 # both of the above used in func dropProgram to return all motors to initial position
 
 triedGrab = 0
@@ -31,17 +29,17 @@ triedTwist = 0 # used to communicate to func printStatuses what the motors are d
 redState = "OFF"
 greenState = "OFF" # used to communicate to func printStatus whether the LEDs are OFF, ON or Flashing.
 
-grabSpeed = 0.5 # motor speed between 0 and 1
+grabSpeed = 0.5
+twistSpeed = 0.5 # motor speeds between 0 and 1
 grabTo = 150 # raw force value between 0 and 255
-twistSpeed = 0.5 # motor speed between 0 and 1
-# assignment of above 3 taken over quickly by slipDetect
+
 rollingAverage = 0
-consecutiveGripValuesFailed = 0 # stores number of grip values below REQUIRED_HANDLE_FORCE *across functions*
+consecutiveGripValuesFailed = 0
 
 sensor1RecentVar = []
-sensor2RecentVar = [] # buffers to store recent force values to calculate rolling variation and slip
+sensor2RecentVar = []
 sensor1RecentAvg = []
-sensor2RecentAvg = [] # buffers to store recent force values to calculate rolling average
+sensor2RecentAvg = [] # buffers to store recent force values to calculate rolling average, rolling variationa and slip
 '''
 rolling average and rolling variation would be cleaner to break into 2 functions and a helper/collector
 function that takes the rolling list, and the other 2 functions do the arithmetic,
@@ -107,14 +105,12 @@ def variation(data): # helper function to func slipDetect. returns average of am
     for reading in data:
         deviation = reading - average
         total += (deviation) ** 2
-
+#**2 makes sure that a positive and a negative deviation don't cancel each other out
+#abs() could also do that but **2 or **4 or a bigger number also amplifies smaller variations, making them easier to detect
     averageVariation = total/len(data)
 
     return averageVariation
-'''
-**2 makes sure that a positive and a negative deviation don't cancel each other out
-abs() could also do that but **2 or **4 or a bigger number also amplifies smaller variations, making them easier to detect
-'''
+
 
 def rollingForceAverage12(): #rolling average of bottom 2 force sensors
     global rollingAverage
@@ -136,7 +132,7 @@ I would like to break slipDetect and rollingForceAverage12 into 1 function to co
 but the rubric specifically wants the rolling Average to be ONE functions only.
 '''
 
-def slipDetect (): #calculates rolling **variation** of bottom 2 sensors, determines if excess variation is indicative of slippage
+def slipDetect (): #calculates rolling variation of bottom 2 sensors, determines if excess variation is indicative of slippage
     global grabSpeed
     global grabTo
     global twistSpeed
@@ -160,14 +156,14 @@ def slipDetect (): #calculates rolling **variation** of bottom 2 sensors, determ
         grabSpeed = 0.4
         grabTo = 200
         twistSpeed = 0.4
-##        print("SLIPPING")
+
     else:
         grabSpeed = 0.1
         grabTo = 150
         twistSpeed = 0.1
-##        print("NOT slipping")
 
-def shouldAbort (): # exits straight to finally clause if user lets go of handle for more than 5 times in a row
+
+def shouldAbort (): # exits straight to finally clause if user lets go of handle for more than 10 times in a row
     global consecutiveGripValuesFailed
     if topSensor < REQUIRED_HANDLE_FORCE:
         consecutiveGripValuesFailed += 1
@@ -175,7 +171,6 @@ def shouldAbort (): # exits straight to finally clause if user lets go of handle
             raise SystemExit
         else:
             return
-# 5 because 1 would be susceptible to sensor variations, but 7 is still short enough to allow for quick recognition of handle release
     else:
         consecutiveGripValuesFailed = 0
         return
@@ -220,8 +215,7 @@ def twist(twistSpeed):
 
     if twistStartTime == None:
         twistStartTime = time.monotonic()
-        #initializes time.monotonic to calculate exactly how long the motor has been twisting in case of tick desync
-
+        # initializes time.monotonic to calculate exactly how long the motor has been twisting in case of tick desync
 
     if timeTwisted > 9:
         print("Lid successfully opened")
@@ -233,8 +227,8 @@ def twist(twistSpeed):
 def motorTick():
     global redState
     if not jarGrabbed(grabSpeed, grabTo):
-        red.off() # flashes red when only trying to grip the lid
-        redState = "Flashing"
+        red.off()
+        redState = "Flashing" # flashes red when only trying to grip the lid
         return False
     
     if twist(twistSpeed):
@@ -243,7 +237,6 @@ def motorTick():
     red.on()
     redState = "ON"
     return False
-
 
 
 def main():
@@ -301,7 +294,8 @@ def main():
         if sleep_time > 0:
             time.sleep(sleep_time)
         else:
-            print("tick went over")
+            #print("tick went over") # this usually happens because of the print statement ->
+                                    # the next tick sleeps for less time to make up for it.
             
         
         
