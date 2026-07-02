@@ -1,4 +1,4 @@
-# Automatic Jar Opener
+## Automatic Jar Opener
 ### A First Year Engineering Project
 
 Using a RaspberryPi and a gripping harness rigged by the CAD team, our code **successfully passed presentations**.
