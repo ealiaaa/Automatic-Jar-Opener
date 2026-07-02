@@ -21,5 +21,7 @@ If slippage is detected, it tightens its grip before continuing to twist.
 Automatically releases grip once jar is open and features a red and green LED, which indicate progression through their state (on, off, flashing slow, flashing fast)
 
 <!-- -->
+---
+
 ### What I would change
 The **amount of global variables is egregious**, a state class would have been cleaner. Please look at the diagram for a **colored**, lightly abstracted walkthrough of the code, unless you want to remember 20 mutating global variables.
