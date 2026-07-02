@@ -25,11 +25,11 @@ Automatically releases grip once jar is open and features a red and green LED, w
 ---
 
 ### What I would do differently next time
-- The amount of global variables is *egregious*, a state class would have been cleaner.
+- The amount of mutating global variables is *egregious*, a state class would have been cleaner.
 - While editing this README.md, I created an excessive amount of commits that could have been avoided by writing a solid first-draft in a markdown editor.
 
 <!-- -->
 
 ---
 
-**Please look at the mermaid diagram** for a **! colored !**, lightly abstracted walkthrough of the code, unless you want to remember 20 mutating global variables.
+**Please look at the mermaid diagram** for a **! colored !**, lightly abstracted walkthrough of the code,.
