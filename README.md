@@ -25,7 +25,7 @@ Automatically releases grip once jar is open and features a red and green LED, w
 ---
 
 ### What I would change
-The **amount of global variables is egregious**, a state class would have been cleaner. 
+- The *amount of global variables is egregious*, a state class would have been cleaner. 
 
 <!-- -->
 
