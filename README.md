@@ -32,4 +32,4 @@ Automatically releases grip once jar is open and features a red and green LED, w
 
 ---
 
-**Please look at the diagram** for a *colored!*, lightly abstracted walkthrough of the code, unless you want to remember 20 mutating global variables.
+**Please look at the mermaid diagram** for a **! colored !**, lightly abstracted walkthrough of the code, unless you want to remember 20 mutating global variables.
