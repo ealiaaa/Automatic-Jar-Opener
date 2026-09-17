@@ -23,25 +23,29 @@ end
 
     K --> L
     L --> M{tickCounter mod 5 equals 0}
-subgraph motorTick
+
     M -->|Yes| N[Stop motors]
+subgraph motorTick
     N --> O[Accumulate timeGrabbed and timeTwisted]
     O --> P[Run motorTick]
-    M -->|No| AB
+
 
     P --> Q{Jar fully grabbed}
 
     Q -->|No| R[Run motorGrab forward and flash red]
-    R --> AB
+
 
     Q -->|Yes| T[Run twist]
     T --> U{timeTwisted greater than 9}
 
     U -->|Yes| V[Set opened as True]
     U -->|No| W[Run motorTwist forward and red on]
-end
+
     V --> W
+end
+    M -->|No| AB
     W --> AB
+    R --> AB
 
     AB{tickCounter mod 10 equals 0} -->|Yes| AC[Flash green and set red on]
     AB -->|No| AD[Continue]
@@ -88,6 +92,9 @@ class N,O,P,Q,R,T,U,V,W motor;
 class F,H,J,K,L,M,AB,AC,AD,AE,AF,AG,AH timing;
 class Z,FINALLY,F1,F2,F3,F4,F5,END shutdown;
 class G,J,M,Q,U,AB,AE decision;
+%% =======================
+%% SUBGRAPH COLORING
+%% =======================
 style STARTUP fill:#002106,stroke:#000000,stroke-width:2px
 style Finally: fill:#380001,stroke:#000000,stroke-width:2px
 style sensorTick fill:#003438,stroke:#000000,stroke-width:2px
